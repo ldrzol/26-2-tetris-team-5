@@ -17,6 +17,14 @@ public class Board extends JPanel implements ActionListener {
 	final int BoardWidth = 10;
 	final int BoardHeight = 22;
 
+    public int getBoardWidth() {
+        return BoardWidth;
+    }
+
+    public int getBoardHeight() {
+        return BoardHeight;
+    }
+
 	Timer timer;
 	boolean isFallingFinished = false;
 	boolean isStarted = false;
@@ -58,8 +66,39 @@ public class Board extends JPanel implements ActionListener {
 		return (int) getSize().getHeight() / BoardHeight;
 	}
 
-	Tetrominoes shapeAt(int x, int y) {
+    public Tetrominoes shapeAt(int x, int y) {
 		return board[(y * BoardWidth) + x];
+	}
+    public Shape getCurPiece() {
+        return curPiece;
+    }
+
+    public boolean isPlaying() {
+        return isStarted && !isPaused;
+    }
+
+    public boolean tryRotateRight() {
+        return tryMove(curPiece.rotateRight(), curX, curY);
+    }
+
+    public boolean tryMoveToX(int x) {
+        return tryMove(curPiece, x, curY);
+    }
+
+	public void hardDrop() {
+		dropDown();
+	}
+
+	public int getCurX() {
+		return curX;
+	}
+
+	public int getCurY() {
+		return curY;
+	}
+
+	public void moveDownOnce() {
+		oneLineDown();
 	}
 
 	public void start() {
