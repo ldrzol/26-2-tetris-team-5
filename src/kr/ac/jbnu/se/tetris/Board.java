@@ -5,248 +5,164 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 
+/**
+ * 게임 하나(GameBoard 하나)를 화면에 보여 주는 패널.
+ * 게임 규칙은 GameBoard에 맡기고, 여기서는 그리기, 타이머, 상태바, 일시정지만 처리한다.
+ *
+ * 키 입력은 이 클래스가 직접 받지 않는다. Tetris가 창 단위로 키를 받아서
+ * 아래의 moveLeft(), rotateLeft() 같은 메서드를 모든 보드에 호출해 준다.
+ */
 public class Board extends JPanel implements ActionListener {
 
-	final int BoardWidth = 10;
-	final int BoardHeight = 22;
+	private final GameBoard game = new GameBoard();  // 게임 규칙 담당
+	private final Timer timer;                       // 블록을 주기적으로 떨어뜨리는 타이머
+	private final JLabel statusbar;                  // 이 보드 전용 상태바
+	private boolean isStarted = false;               // 게임 진행 중 여부
+	private boolean isPaused = false;                // 일시정지 여부
 
-    public int getBoardWidth() {
-        return BoardWidth;
-    }
-
-    public int getBoardHeight() {
-        return BoardHeight;
-    }
-
-	Timer timer;
-	boolean isFallingFinished = false;
-	boolean isStarted = false;
-	boolean isPaused = false;
-	int numLinesRemoved = 0;
-	int curX = 0;
-	int curY = 0;
-	JLabel statusbar;
-	Shape curPiece;
-	Tetrominoes[] board;
-
-	public Board(Tetris parent) {
-
-		setFocusable(true);
-		curPiece = new Shape();
-		timer = new Timer(400, this);
+	public Board(JLabel statusbar) {
+		this.statusbar = statusbar;
+		timer = new Timer(400, this);   // 400ms마다 actionPerformed 호출
 		timer.start();
-
-		statusbar = parent.getStatusBar();
-		board = new Tetrominoes[BoardWidth * BoardHeight];
-		addKeyListener(new TAdapter());
-		clearBoard();
 	}
 
+	/** 타이머가 호출. 게임 규칙의 한 틱을 진행한 뒤 화면을 갱신한다. */
 	public void actionPerformed(ActionEvent e) {
-		if (isFallingFinished) {
-			isFallingFinished = false;
-			newPiece();
-		} else {
-			oneLineDown();
-		}
+		game.tick();
+		afterAction();
 	}
 
-	int squareWidth() {
-		return (int) getSize().getWidth() / BoardWidth;
-	}
-
-	int squareHeight() {
-		return (int) getSize().getHeight() / BoardHeight;
-	}
-
-    public Tetrominoes shapeAt(int x, int y) {
-		return board[(y * BoardWidth) + x];
-	}
-    public Shape getCurPiece() {
-        return curPiece;
-    }
-
-    public boolean isPlaying() {
-        return isStarted && !isPaused;
-    }
-
-    public boolean tryRotateRight() {
-        return tryMove(curPiece.rotateRight(), curX, curY);
-    }
-
-    public boolean tryMoveToX(int x) {
-        return tryMove(curPiece, x, curY);
-    }
-
-	public void hardDrop() {
-		dropDown();
-	}
-
-	public int getCurX() {
-		return curX;
-	}
-
-	public int getCurY() {
-		return curY;
-	}
-
-	public void moveDownOnce() {
-		oneLineDown();
-	}
-
+	/** 게임 시작(또는 재시작). */
 	public void start() {
 		if (isPaused)
 			return;
 
 		isStarted = true;
-		isFallingFinished = false;
-		numLinesRemoved = 0;
-		clearBoard();
-
-		newPiece();
+		game.reset();
+		game.spawn();
 		timer.start();
+		afterAction();
 	}
 
-	private void pause() {
-		if (!isStarted)
+	/** 일시정지 상태를 지정한다. (Tetris가 모든 보드에 같은 값을 전달한다) */
+	public void setPaused(boolean paused) {
+		if (!isStarted || isPaused == paused)
 			return;
 
-		isPaused = !isPaused;
+		isPaused = paused;
 		if (isPaused) {
 			timer.stop();
 			statusbar.setText("paused");
 		} else {
 			timer.start();
-			statusbar.setText(String.valueOf(numLinesRemoved));
+			statusbar.setText(String.valueOf(game.getLinesRemoved()));
 		}
 		repaint();
 	}
 
+	// ---- 조작 메서드 (Tetris의 키 바인딩이 호출) ----
+
+	public void moveLeft() {
+		if (canControl()) {
+			game.moveLeft();
+			afterAction();
+		}
+	}
+
+	public void moveRight() {
+		if (canControl()) {
+			game.moveRight();
+			afterAction();
+		}
+	}
+
+	public void rotateRight() {
+		if (canControl()) {
+			game.rotateRight();
+			afterAction();
+		}
+	}
+
+	public void rotateLeft() {
+		if (canControl()) {
+			game.rotateLeft();
+			afterAction();
+		}
+	}
+
+	public void hardDrop() {
+		if (canControl()) {
+			game.hardDrop();
+			afterAction();
+		}
+	}
+
+	public void softDrop() {
+		if (canControl()) {
+			game.moveDown();
+			afterAction();
+		}
+	}
+
+	/** 게임이 끝났거나, 일시정지 중이거나, 조작할 블록이 없으면 입력을 무시한다. */
+	private boolean canControl() {
+		return isStarted && !isPaused && game.currentType() != Tetrominoes.NoShape;
+	}
+
+	/** 게임 상태를 상태바와 타이머에 반영하고 화면을 다시 그린다. */
+	private void afterAction() {
+		if (game.isGameOver()) {
+			timer.stop();
+			isStarted = false;
+			statusbar.setText("game over");
+		} else {
+			statusbar.setText(String.valueOf(game.getLinesRemoved()));
+		}
+		repaint();
+	}
+
+	// 칸 크기는 패널의 실제 크기에서 계산하므로, 보드가 작아지면 칸도 같이 작아진다
+	int squareWidth() {
+		return (int) getSize().getWidth() / GameBoard.WIDTH;
+	}
+
+	int squareHeight() {
+		return (int) getSize().getHeight() / GameBoard.HEIGHT;
+	}
+
+	/** 화면 그리기. 쌓인 블록 -> 현재 떨어지는 블록 순서로 그린다. */
 	public void paint(Graphics g) {
 		super.paint(g);
 
 		Dimension size = getSize();
-		int boardTop = (int) size.getHeight() - BoardHeight * squareHeight();
+		int boardTop = (int) size.getHeight() - GameBoard.HEIGHT * squareHeight();
 
-		for (int i = 0; i < BoardHeight; ++i) {
-			for (int j = 0; j < BoardWidth; ++j) {
-				Tetrominoes shape = shapeAt(j, BoardHeight - i - 1);
+		// 1) 이미 바닥에 쌓인 블록
+		for (int i = 0; i < GameBoard.HEIGHT; ++i) {
+			for (int j = 0; j < GameBoard.WIDTH; ++j) {
+				Tetrominoes shape = game.shapeAt(j, GameBoard.HEIGHT - i - 1);
 				if (shape != Tetrominoes.NoShape)
-					drawSquare(g, 0 + j * squareWidth(), boardTop + i * squareHeight(), shape);
+					drawSquare(g, j * squareWidth(), boardTop + i * squareHeight(), shape);
 			}
 		}
 
-		if (curPiece.getShape() != Tetrominoes.NoShape) {
+		// 2) 현재 떨어지는 블록
+		if (game.currentType() != Tetrominoes.NoShape) {
 			for (int i = 0; i < 4; ++i) {
-				int x = curX + curPiece.x(i);
-				int y = curY - curPiece.y(i);
-				drawSquare(g, 0 + x * squareWidth(), boardTop + (BoardHeight - y - 1) * squareHeight(),
-						curPiece.getShape());
+				int x = game.pieceX(i);
+				int y = game.pieceY(i);
+				drawSquare(g, x * squareWidth(), boardTop + (GameBoard.HEIGHT - y - 1) * squareHeight(),
+						game.currentType());
 			}
 		}
 	}
 
-	private void dropDown() {
-		int newY = curY;
-		while (newY > 0) {
-			if (!tryMove(curPiece, curX, newY - 1))
-				break;
-			--newY;
-		}
-		pieceDropped();
-	}
-
-	private void oneLineDown() {
-		if (!tryMove(curPiece, curX, curY - 1))
-			pieceDropped();
-	}
-
-	private void clearBoard() {
-		for (int i = 0; i < BoardHeight * BoardWidth; ++i)
-			board[i] = Tetrominoes.NoShape;
-	}
-
-	private void pieceDropped() {
-		for (int i = 0; i < 4; ++i) {
-			int x = curX + curPiece.x(i);
-			int y = curY - curPiece.y(i);
-			board[(y * BoardWidth) + x] = curPiece.getShape();
-		}
-
-		removeFullLines();
-
-		if (!isFallingFinished)
-			newPiece();
-	}
-
-	private void newPiece() {
-		curPiece.setRandomShape();
-		curX = BoardWidth / 2 + 1;
-		curY = BoardHeight - 1 + curPiece.minY();
-
-		if (!tryMove(curPiece, curX, curY)) {
-			curPiece.setShape(Tetrominoes.NoShape);
-			timer.stop();
-			isStarted = false;
-			statusbar.setText("game over");
-		}
-	}
-
-	private boolean tryMove(Shape newPiece, int newX, int newY) {
-		for (int i = 0; i < 4; ++i) {
-			int x = newX + newPiece.x(i);
-			int y = newY - newPiece.y(i);
-			if (x < 0 || x >= BoardWidth || y < 0 || y >= BoardHeight)
-				return false;
-			if (shapeAt(x, y) != Tetrominoes.NoShape)
-				return false;
-		}
-
-		curPiece = newPiece;
-		curX = newX;
-		curY = newY;
-		repaint();
-		return true;
-	}
-
-	private void removeFullLines() {
-		int numFullLines = 0;
-
-		for (int i = BoardHeight - 1; i >= 0; --i) {
-			boolean lineIsFull = true;
-
-			for (int j = 0; j < BoardWidth; ++j) {
-				if (shapeAt(j, i) == Tetrominoes.NoShape) {
-					lineIsFull = false;
-					break;
-				}
-			}
-
-			if (lineIsFull) {
-				++numFullLines;
-				for (int k = i; k < BoardHeight - 1; ++k) {
-					for (int j = 0; j < BoardWidth; ++j)
-						board[(k * BoardWidth) + j] = shapeAt(j, k + 1);
-				}
-			}
-		}
-
-		if (numFullLines > 0) {
-			numLinesRemoved += numFullLines;
-			statusbar.setText(String.valueOf(numLinesRemoved));
-			isFallingFinished = true;
-			curPiece.setShape(Tetrominoes.NoShape);
-			repaint();
-		}
-	}
-
+	/** 한 칸(정사각형)을 색상과 입체감을 넣어 그린다. */
 	private void drawSquare(Graphics g, int x, int y, Tetrominoes shape) {
 		Color colors[] = { new Color(0, 0, 0), new Color(204, 102, 102), new Color(102, 204, 102),
 				new Color(102, 102, 204), new Color(204, 204, 102), new Color(204, 102, 204), new Color(102, 204, 204),
@@ -264,49 +180,5 @@ public class Board extends JPanel implements ActionListener {
 		g.setColor(color.darker());
 		g.drawLine(x + 1, y + squareHeight() - 1, x + squareWidth() - 1, y + squareHeight() - 1);
 		g.drawLine(x + squareWidth() - 1, y + squareHeight() - 1, x + squareWidth() - 1, y + 1);
-	}
-
-	class TAdapter extends KeyAdapter {
-		public void keyPressed(KeyEvent e) {
-
-			if (!isStarted || curPiece.getShape() == Tetrominoes.NoShape) {
-				return;
-			}
-
-			int keycode = e.getKeyCode();
-
-			if (keycode == 'p' || keycode == 'P') {
-				pause();
-				return;
-			}
-
-			if (isPaused)
-				return;
-
-			switch (keycode) {
-			case KeyEvent.VK_LEFT:
-				tryMove(curPiece, curX - 1, curY);
-				break;
-			case KeyEvent.VK_RIGHT:
-				tryMove(curPiece, curX + 1, curY);
-				break;
-			case KeyEvent.VK_DOWN:
-				tryMove(curPiece.rotateRight(), curX, curY);
-				break;
-			case KeyEvent.VK_UP:
-				tryMove(curPiece.rotateLeft(), curX, curY);
-				break;
-			case KeyEvent.VK_SPACE:
-				dropDown();
-				break;
-			case 'd':
-				oneLineDown();
-				break;
-			case 'D':
-				oneLineDown();
-				break;
-			}
-
-		}
 	}
 }
