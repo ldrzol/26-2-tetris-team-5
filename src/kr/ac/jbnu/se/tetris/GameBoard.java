@@ -1,23 +1,23 @@
 package kr.ac.jbnu.se.tetris;
 
-/**
- * Swing에 의존하지 않는 순수 게임 규칙 클래스.
- * 쌓인 블록, 현재 블록과 위치, 이동/회전/낙하/고정, 줄 삭제, 줄 수, 게임 오버 여부를 담당한다.
- *
- * 좌표계: (0,0)이 "왼쪽 아래"이고 y가 위로 갈수록 커진다.
- */
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 public class GameBoard {
 
     public static final int WIDTH = 10;   // 게임판 가로 칸 수
     public static final int HEIGHT = 22;  // 게임판 세로 칸 수
 
-    private final Tetrominoes[] cells = new Tetrominoes[WIDTH * HEIGHT]; // 쌓여 있는 블록들
+    protected final Tetrominoes[][] cells = new Tetrominoes[HEIGHT][WIDTH]; // 쌓여 있는 블록들
     private Shape curPiece = new Shape();   // 현재 조작 중인 블록
     private int curX = 0;                   // 현재 블록 기준점 x
     private int curY = 0;                   // 현재 블록 기준점 y
     private int linesRemoved = 0;           // 지운 줄 수
     private boolean gameOver = false;       // 게임 오버 여부
     private boolean spawnPending = false;   // 줄이 지워져서 새 블록을 다음 틱에 만들어야 하는 상태
+    private final List<Integer> flashRows = new ArrayList<>(); // 깜빡이는 중인(곧 지워질) 줄들
 
     public GameBoard() {
         reset();
@@ -25,12 +25,14 @@ public class GameBoard {
 
     /** 보드를 비우고 상태를 초기화한다. (첫 블록은 spawn()으로 따로 만든다) */
     public void reset() {
-        for (int i = 0; i < cells.length; ++i)
-            cells[i] = Tetrominoes.NoShape;
+        for (int i = 0; i < HEIGHT; ++i){
+            Arrays.fill(cells[i],Tetrominoes.NoShape);
+        }
         curPiece.setShape(Tetrominoes.NoShape);
         linesRemoved = 0;
         gameOver = false;
         spawnPending = false;
+        flashRows.clear();
     }
 
     /** 새 블록 생성. 시작 위치에 놓을 수 없으면 게임 오버가 되고 false를 반환한다. */
@@ -51,7 +53,7 @@ public class GameBoard {
      * 타이머 한 틱 처리. 줄 삭제 직후라면 새 블록을 만들고, 아니면 한 칸 내린다.
      */
     public void tick() {
-        if (gameOver)
+        if (gameOver || isClearing())   // 줄이 깜빡이는 동안은 게임을 멈춘다
             return;
         if (spawnPending) {
             spawnPending = false;
@@ -77,7 +79,6 @@ public class GameBoard {
         return tryMove(curPiece.rotateRight(), curX, curY);
     }
 
-    /** 한 칸 내리기. 더 못 내려가면 바닥에 고정하고 false를 반환한다. */
     public boolean moveDown() {
         if (tryMove(curPiece, curX, curY - 1))
             return true;
@@ -85,7 +86,6 @@ public class GameBoard {
         return false;
     }
 
-    /** 더 이상 내려갈 수 없을 때까지 한 번에 떨어뜨리고 고정한다. */
     public void hardDrop() {
         while (moveDown()) {
         }
@@ -94,7 +94,7 @@ public class GameBoard {
     // ---- 화면 쪽이 읽어 가는 조회용 메서드 ----
 
     public Tetrominoes shapeAt(int x, int y) {
-        return cells[y * WIDTH + x];
+        return cells[y][x];
     }
 
     public Tetrominoes currentType() {
@@ -130,6 +130,16 @@ public class GameBoard {
         return gameOver;
     }
 
+    /** 줄 삭제 이펙트(깜빡임) 진행 중인지 */
+    public boolean isClearing() {
+        return !flashRows.isEmpty();
+    }
+
+    /** 해당 줄이 깜빡이는 중인 줄인지 */
+    public boolean isFlashRow(int row) {
+        return flashRows.contains(row);
+    }
+
     // ---- 내부 로직 ----
 
     /** (newX, newY)로 옮길 수 있는지 검사하고, 가능하면 실제로 이동한다. repaint는 하지 않는다. */
@@ -154,42 +164,54 @@ public class GameBoard {
         for (int i = 0; i < 4; ++i) {
             int x = curX + curPiece.x(i);
             int y = curY - curPiece.y(i);
-            cells[y * WIDTH + x] = curPiece.getShape();
+            cells[y][x] = curPiece.getShape();
         }
 
-        int cleared = clearLines();
+        // 꽉 찬 줄은 바로 지우지 않고 기록만 해 둔다. (Board가 깜빡인 뒤 finishClear()를 호출)
+        for (int i = 0; i < HEIGHT; ++i) {
+            if (isLineFull(i))
+                flashRows.add(i);
+        }
 
-        if (cleared > 0) {
-            linesRemoved += cleared;
-            spawnPending = true;
+        if (isClearing()) {
             curPiece.setShape(Tetrominoes.NoShape);
         } else {
             spawn();
         }
     }
 
-    /** 가득 찬 줄을 지우고 위의 줄들을 내린다. 지운 줄 수를 반환한다. */
-    private int clearLines() {
-        int numFullLines = 0;
+    /** 깜빡임이 끝난 뒤 호출. 기록해 둔 줄을 실제로 지우고, 새 블록은 다음 틱에 만든다. */
+    public void finishClear() {
+        Collections.sort(flashRows, Collections.reverseOrder());   // 높은 줄부터 당겨야 아래 줄 번호가 안 밀린다
+        for (int row : flashRows)
+            downLine(row);
+        linesRemoved += flashRows.size();
+        flashRows.clear();
+        spawnPending = true;
+    }
 
-        for (int i = HEIGHT - 1; i >= 0; --i) {
-            boolean lineIsFull = true;
-
-            for (int j = 0; j < WIDTH; ++j) {
-                if (shapeAt(j, i) == Tetrominoes.NoShape) {
-                    lineIsFull = false;
-                    break;
-                }
-            }
-
-            if (lineIsFull) {
-                ++numFullLines;
-                for (int k = i; k < HEIGHT - 1; ++k) {
-                    for (int j = 0; j < WIDTH; ++j)
-                        cells[k * WIDTH + j] = shapeAt(j, k + 1);
-                }
+    private boolean isLineFull(int row){
+        for (int j = 0; j < WIDTH; ++j) {
+            if (shapeAt(j, row)==Tetrominoes.NoShape){
+                return false;
             }
         }
-        return numFullLines;
+        return true;
+    }
+
+    public void downLine(int row) {
+        for(int y = row;y<HEIGHT-1;y++){
+            cells[y]=cells[y+1];
+        }
+        cells[HEIGHT-1]=new Tetrominoes[WIDTH];
+        Arrays.fill(cells[HEIGHT-1],Tetrominoes.NoShape);
+    }
+
+    public void upLine(int row) {
+        for(int y = HEIGHT-1;y>row;y--){
+            cells[y]=cells[y-1];
+        }
+        cells[row]=new Tetrominoes[WIDTH];
+        Arrays.fill(cells[row],Tetrominoes.NoShape);
     }
 }
