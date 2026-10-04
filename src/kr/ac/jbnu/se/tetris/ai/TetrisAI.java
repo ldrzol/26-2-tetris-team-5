@@ -1,13 +1,13 @@
 package kr.ac.jbnu.se.tetris.ai;
 
-import kr.ac.jbnu.se.tetris.Board;
+import kr.ac.jbnu.se.tetris.GameBoard;
 import kr.ac.jbnu.se.tetris.Shape;
 import kr.ac.jbnu.se.tetris.Tetrominoes;
 
 public class TetrisAI {
-    public Move findBestMove(Board board, Shape piece) {
-        int width = board.getBoardWidth();
-        int height = board.getBoardHeight();
+    public Move findBestMove(GameBoard board, Shape piece) {
+        int width = GameBoard.WIDTH;
+        int height = GameBoard.HEIGHT;
         Move bestMove=null;
         int bestScore = Integer.MIN_VALUE;
         Shape shape = piece;
@@ -31,8 +31,8 @@ public class TetrisAI {
         }
         return bestMove;
     }
-    public Move findRandomMove(Board board, Shape piece) {
-        int width = board.getBoardWidth();
+    public Move findRandomMove(GameBoard board, Shape piece) {
+        int width = GameBoard.WIDTH;
         for (int attempt = 0; attempt < 50; attempt++) {
             int rotation = (int) (Math.random() * 4);
             int curX = (int) (Math.random() * width);
@@ -48,11 +48,11 @@ public class TetrisAI {
         }
         return findBestMove(board, piece);
     }
-    private boolean canPlace(Board board, Shape shape, int curX, int curY) {
+    private boolean canPlace(GameBoard board, Shape shape, int curX, int curY) {
         for (int i = 0; i < 4; i++) {
             int x = curX + shape.x(i);
             int y = curY - shape.y(i);
-            if (x < 0 || x >= board.getBoardWidth() || y < 0 || y >= board.getBoardHeight()) {
+            if (x < 0 || x >=GameBoard.WIDTH || y < 0 || y >= GameBoard.HEIGHT) {
                 return false;
             }
             if (board.shapeAt(x, y) != Tetrominoes.NoShape) {
@@ -61,8 +61,8 @@ public class TetrisAI {
         }
         return true;
     }
-    private int findLandingY(Board board, Shape shape, int curX) {
-        int y = board.getBoardHeight() - 1 + shape.minY();
+    private int findLandingY(GameBoard board, Shape shape, int curX) {
+        int y = GameBoard.HEIGHT - 1 + shape.minY();
         if (!canPlace(board, shape, curX, y)) {
             return -1;
         }
@@ -71,9 +71,9 @@ public class TetrisAI {
         }
         return y;
     }
-    private Tetrominoes[] simulatePlace(Board board, Shape shape, int curX, int landingY) {
-        int width = board.getBoardWidth();
-        int height = board.getBoardHeight();
+    private Tetrominoes[] simulatePlace(GameBoard board, Shape shape, int curX, int landingY) {
+        int width = GameBoard.WIDTH;
+        int height = GameBoard.HEIGHT;
 
         Tetrominoes[] copy = new Tetrominoes[width * height];
         for (int y = 0; y < height; y++) {

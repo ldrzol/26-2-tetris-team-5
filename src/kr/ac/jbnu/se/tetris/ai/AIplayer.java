@@ -3,21 +3,24 @@ package kr.ac.jbnu.se.tetris.ai;
 import javax.swing.Timer;
 
 import kr.ac.jbnu.se.tetris.Board;
+import kr.ac.jbnu.se.tetris.GameBoard;
 import kr.ac.jbnu.se.tetris.Shape;
 import kr.ac.jbnu.se.tetris.Tetrominoes;
 
 public class AIplayer {
-    private Board board;
+    private Board view;
+    private GameBoard game;
     private TetrisAI ai = new TetrisAI();
     private Timer timer;
     private Move plan = null;
-    private int rotationsLeft=0;
-    private int lastY =-1;
+    private int rotationsLeft = 0;
+    private int lastY = -1;
     private double mistakeRate = 0.2;
 
-    public AIplayer(Board board) {
-        this.board = board;
-        timer = new Timer(150, e -> playOneStep());
+    public AIplayer(Board view) {
+        this.view = view;
+        this.game = view.getGame();
+        timer = new Timer(300, e -> playOneStep());
     }
 
     public void start() {
@@ -29,25 +32,26 @@ public class AIplayer {
     }
 
     private void playOneStep() {
-        if (!board.isPlaying()) {
+        if (!view.isRunning()) {
             return;
         }
 
-        Shape piece = board.getCurPiece();
-        if (piece.getShape() == Tetrominoes.NoShape) {
+        if (game.currentType() == Tetrominoes.NoShape) {
             plan = null;
             return;
         }
-        if (board.getCurY() > lastY) {
+        Shape piece = game.getCurPiece();
+
+        if (game.getCurY() > lastY) {
             plan = null;
         }
-        lastY = board.getCurY();
+        lastY = game.getCurY();
 
         if (plan == null) {
             if (Math.random() < mistakeRate) {
-                plan = ai.findRandomMove(board, piece);
+                plan = ai.findRandomMove(game, piece);
             } else {
-                plan = ai.findBestMove(board, piece);
+                plan = ai.findBestMove(game, piece);
             }
             if (plan == null) {
                 return;
@@ -56,19 +60,19 @@ public class AIplayer {
         }
 
         if (rotationsLeft > 0) {
-            if (board.tryRotateRight()) {
+            if (game.rotateRight()) {
                 rotationsLeft--;
             }
-        } else if (board.getCurX() < plan.x) {
-            board.tryMoveToX(board.getCurX() + 1);
-        } else if (board.getCurX() > plan.x) {
-            board.tryMoveToX(board.getCurX() - 1);
-        } else if (Math.random() < 0.1) {
-            board.hardDrop();
+        } else if (game.getCurX() < plan.x) {
+            game.moveRight();
+        } else if (game.getCurX() > plan.x) {
+            game.moveLeft();
+        } else if (Math.random() < 0.2) {
+            game.hardDrop();
             plan = null;
         } else {
-            board.moveDownOnce();
+            game.moveDown();
         }
+        view.repaint();
     }
-
 }
