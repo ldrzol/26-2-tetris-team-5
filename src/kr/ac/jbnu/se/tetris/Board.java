@@ -181,4 +181,11 @@ public class Board extends JPanel implements ActionListener {
 		g.drawLine(x + 1, y + squareHeight() - 1, x + squareWidth() - 1, y + squareHeight() - 1);
 		g.drawLine(x + squareWidth() - 1, y + squareHeight() - 1, x + squareWidth() - 1, y + 1);
 	}
+	public GameBoard getGame() {
+		return game;
+	}
+
+	public boolean isRunning() {
+		return isStarted && !isPaused;
+	}
 }

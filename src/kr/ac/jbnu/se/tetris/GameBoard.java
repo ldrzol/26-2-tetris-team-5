@@ -100,6 +100,17 @@ public class GameBoard {
     public Tetrominoes currentType() {
         return curPiece.getShape();
     }
+    public Shape getCurPiece() {
+        return curPiece;
+    }
+
+    public int getCurX() {
+        return curX;
+    }
+
+    public int getCurY() {
+        return curY;
+    }
 
     /** 현재 블록 i번째 사각형의 보드상 x 좌표 */
     public int pieceX(int i) {
