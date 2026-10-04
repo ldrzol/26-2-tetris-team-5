@@ -10,7 +10,7 @@ public class GameBoard {
     public static final int WIDTH = 10;   // 게임판 가로 칸 수
     public static final int HEIGHT = 22;  // 게임판 세로 칸 수
 
-    private final Tetrominoes[] cells = new Tetrominoes[WIDTH * HEIGHT]; // 쌓여 있는 블록들
+    protected final Tetrominoes[][] cells = new Tetrominoes[HEIGHT][WIDTH]; // 쌓여 있는 블록들
     private Shape curPiece = new Shape();   // 현재 조작 중인 블록
     private int curX = 0;                   // 현재 블록 기준점 x
     private int curY = 0;                   // 현재 블록 기준점 y
@@ -25,8 +25,9 @@ public class GameBoard {
 
     /** 보드를 비우고 상태를 초기화한다. (첫 블록은 spawn()으로 따로 만든다) */
     public void reset() {
-        for (int i = 0; i < cells.length; ++i)
-            cells[i] = Tetrominoes.NoShape;
+        for (int i = 0; i < HEIGHT; ++i){
+            Arrays.fill(cells[i],Tetrominoes.NoShape);
+        }
         curPiece.setShape(Tetrominoes.NoShape);
         linesRemoved = 0;
         gameOver = false;
@@ -93,7 +94,7 @@ public class GameBoard {
     // ---- 화면 쪽이 읽어 가는 조회용 메서드 ----
 
     public Tetrominoes shapeAt(int x, int y) {
-        return cells[y * WIDTH + x];
+        return cells[y][x];
     }
 
     public Tetrominoes currentType() {
@@ -152,7 +153,7 @@ public class GameBoard {
         for (int i = 0; i < 4; ++i) {
             int x = curX + curPiece.x(i);
             int y = curY - curPiece.y(i);
-            cells[y * WIDTH + x] = curPiece.getShape();
+            cells[y][x] = curPiece.getShape();
         }
 
         // 꽉 찬 줄은 바로 지우지 않고 기록만 해 둔다. (Board가 깜빡인 뒤 finishClear()를 호출)
@@ -188,14 +189,18 @@ public class GameBoard {
     }
 
     public void downLine(int row) {
-        System.arraycopy(cells, (row + 1) * WIDTH,   // 원본: row+1 줄부터
-                cells, row * WIDTH,          // 대상: row 줄부터
-                (HEIGHT - 1 - row) * WIDTH); // 복사할 칸 수
-        Arrays.fill(cells, (HEIGHT - 1) * WIDTH, HEIGHT * WIDTH, Tetrominoes.NoShape);
+        for(int y = row;y<HEIGHT-1;y++){
+            cells[y]=cells[y+1];
+        }
+        cells[HEIGHT-1]=new Tetrominoes[WIDTH];
+        Arrays.fill(cells[HEIGHT-1],Tetrominoes.NoShape);
     }
+
     public void upLine(int row) {
-        System.arraycopy(cells, (row - 1) * WIDTH,
-                cells, row * WIDTH,
-                (HEIGHT - 1 + row) * WIDTH);
+        for(int y = HEIGHT-1;y>row;y--){
+            cells[y]=cells[y-1];
+        }
+        cells[row]=new Tetrominoes[WIDTH];
+        Arrays.fill(cells[row],Tetrominoes.NoShape);
     }
 }

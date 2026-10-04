@@ -87,6 +87,7 @@ public class Tetris extends JFrame {
 		bind(KeyEvent.VK_UP, "rotateLeft", Board::rotateLeft);
 		bind(KeyEvent.VK_SPACE, "drop", Board::hardDrop);
 		bind(KeyEvent.VK_D, "softDrop", Board::softDrop);
+		bind(KeyEvent.VK_R, "Restart", Board::start);
 
 		// 일시정지는 보드 하나가 아니라 전체 상태를 한 곳에서 관리한다
 		Runnable togglePause = () -> {

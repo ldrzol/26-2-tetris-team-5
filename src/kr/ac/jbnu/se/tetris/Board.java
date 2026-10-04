@@ -18,8 +18,8 @@ public class Board extends JPanel implements ActionListener {
 	private boolean isStarted = false;               // 게임 진행 중 여부
 	private boolean isPaused = false;// 일시정지 여부
 
-	private static final int FLASH_TOTAL = 6;
-	private final Timer flashTimer = new Timer(100, e -> onFlashTick());
+	private static final int FLASH_TOTAL = 6;//블럭 제거 이펙트 깜빡이는 횟수, 짝수로 둘 것
+	private final Timer flashTimer = new Timer(100, e -> onFlashTick());//깜빡이는 빈도
 
 	private boolean flashOn = false;
 	private int flashCount = 0;
@@ -205,7 +205,7 @@ public class Board extends JPanel implements ActionListener {
 	private void drawSquare(Graphics g, int x, int y, Tetrominoes shape) {
 		Color colors[] = { new Color(0, 0, 0), new Color(204, 102, 102), new Color(102, 204, 102),
 				new Color(102, 102, 204), new Color(204, 204, 102), new Color(204, 102, 204), new Color(102, 204, 204),
-				new Color(218, 170, 0) };
+				new Color(218, 170, 0), new Color(153, 153, 153) };
 
 		Color color = colors[shape.ordinal()];
 
