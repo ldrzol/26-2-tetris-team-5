@@ -4,38 +4,42 @@ import java.util.Random;
 
 public class Shape {
 
+	/** Tetrominoes 순서대로 적은 네 칸의 상대 좌표. 모양을 늘리면 여기도 한 줄 늘려야 한다. */
+	private static final int[][][] COORDS = {
+			{ { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } },      // NoShape
+			{ { 0, -1 }, { 0, 0 }, { -1, 0 }, { -1, 1 } },   // ZShape
+			{ { 0, -1 }, { 0, 0 }, { 1, 0 }, { 1, 1 } },     // SShape
+			{ { 0, -1 }, { 0, 0 }, { 0, 1 }, { 0, 2 } },     // LineShape
+			{ { -1, 0 }, { 0, 0 }, { 1, 0 }, { 0, 1 } },     // TShape
+			{ { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } },      // SquareShape
+			{ { -1, -1 }, { 0, -1 }, { 0, 0 }, { 0, 1 } },   // LShape
+			{ { 1, -1 }, { 0, -1 }, { 0, 0 }, { 0, 1 } },    // MirroredLShape
+			{ { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } },      // GarbageShape (쌓인 칸 전용, 조작하지 않는다)
+	};
+
+	/** 뽑을 수 있는 모양은 ZShape(1) ~ MirroredLShape(7). */
+	private static final int PICKABLE = 7;
+
+	private static final Random RANDOM = new Random();
+
 	private Tetrominoes pieceShape;
-	private int coords[][];
-	private int[][][] coordsTable;
+	private final int[][] coords = new int[4][2];
 
 	public Shape() {
-		coords = new int[4][2];
 		setShape(Tetrominoes.NoShape);
 	}
 
 	public void setShape(Tetrominoes shape) {
-
-		coordsTable = new int[][][] { { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } },
-				{ { 0, -1 }, { 0, 0 }, { -1, 0 }, { -1, 1 } }, { { 0, -1 }, { 0, 0 }, { 1, 0 }, { 1, 1 } },
-				{ { 0, -1 }, { 0, 0 }, { 0, 1 }, { 0, 2 } }, { { -1, 0 }, { 0, 0 }, { 1, 0 }, { 0, 1 } },
-				{ { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } }, { { -1, -1 }, { 0, -1 }, { 0, 0 }, { 0, 1 } },
-				{ { 1, -1 }, { 0, -1 }, { 0, 0 }, { 0, 1 } } };
-
+		int[][] table = COORDS[shape.ordinal()];
 		for (int i = 0; i < 4; i++) {
-			for (int j = 0; j < 2; ++j) {
-				coords[i][j] = coordsTable[shape.ordinal()][i][j];
-			}
+			coords[i][0] = table[i][0];
+			coords[i][1] = table[i][1];
 		}
 		pieceShape = shape;
-
 	}
 
-	private void setX(int index, int x) {
-		coords[index][0] = x;
-	}
-
-	private void setY(int index, int y) {
-		coords[index][1] = y;
+	public void setRandomShape() {
+		setShape(Tetrominoes.values()[RANDOM.nextInt(PICKABLE) + 1]);
 	}
 
 	public int x(int index) {
@@ -50,21 +54,6 @@ public class Shape {
 		return pieceShape;
 	}
 
-	public void setRandomShape() {
-		Random r = new Random();
-		int x = Math.abs(r.nextInt()) % 7 + 1;
-		Tetrominoes[] values = Tetrominoes.values();
-		setShape(values[x]);
-	}
-
-	public int minX() {
-		int m = coords[0][0];
-		for (int i = 0; i < 4; i++) {
-			m = Math.min(m, coords[i][0]);
-		}
-		return m;
-	}
-
 	public int minY() {
 		int m = coords[0][1];
 		for (int i = 0; i < 4; i++) {
@@ -74,29 +63,23 @@ public class Shape {
 	}
 
 	public Shape rotateLeft() {
-		if (pieceShape == Tetrominoes.SquareShape)
-			return this;
-
-		Shape result = new Shape();
-		result.pieceShape = pieceShape;
-
-		for (int i = 0; i < 4; ++i) {
-			result.setX(i, y(i));
-			result.setY(i, -x(i));
-		}
-		return result;
+		return rotate(1);
 	}
 
 	public Shape rotateRight() {
+		return rotate(-1);
+	}
+
+	/** dir = +1 반시계, -1 시계. 네모 블록은 돌려도 똑같으므로 그대로 돌려준다. */
+	private Shape rotate(int dir) {
 		if (pieceShape == Tetrominoes.SquareShape)
 			return this;
 
 		Shape result = new Shape();
 		result.pieceShape = pieceShape;
-
 		for (int i = 0; i < 4; ++i) {
-			result.setX(i, -y(i));
-			result.setY(i, x(i));
+			result.coords[i][0] = dir * y(i);
+			result.coords[i][1] = -dir * x(i);
 		}
 		return result;
 	}
