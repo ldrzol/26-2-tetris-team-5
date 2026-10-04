@@ -4,13 +4,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 public class GameBoard {
 
     public static final int WIDTH = 10;   // 게임판 가로 칸 수
     public static final int HEIGHT = 22;  // 게임판 세로 칸 수
 
+    public static final int COLOR_COUNT = 7;   // 블록 색 가짓수 (Board.PALETTE 와 같아야 함)
+
     protected final Tetrominoes[][] cells = new Tetrominoes[HEIGHT][WIDTH]; // 쌓여 있는 블록들
+    protected final int[][] colorIds = new int[HEIGHT][WIDTH];              // cells 와 같은 자리의 색 번호
+    private final Random colorRng = new Random();
+    private int curColor = 0;               // 지금 떨어지는 블록의 색 번호
     private Shape curPiece = new Shape();   // 현재 조작 중인 블록
     private int curX = 0;                   // 현재 블록 기준점 x
     private int curY = 0;                   // 현재 블록 기준점 y
@@ -27,6 +33,7 @@ public class GameBoard {
     public void reset() {
         for (int i = 0; i < HEIGHT; ++i){
             Arrays.fill(cells[i],Tetrominoes.NoShape);
+            Arrays.fill(colorIds[i],0);
         }
         curPiece.setShape(Tetrominoes.NoShape);
         linesRemoved = 0;
@@ -38,6 +45,7 @@ public class GameBoard {
     /** 새 블록 생성. 시작 위치에 놓을 수 없으면 게임 오버가 되고 false를 반환한다. */
     public boolean spawn() {
         curPiece.setRandomShape();
+        curColor = colorRng.nextInt(COLOR_COUNT);   // 블록마다 색을 새로 뽑는다
         curX = WIDTH / 2 + 1;
         curY = HEIGHT - 1 + curPiece.minY();
 
@@ -92,6 +100,16 @@ public class GameBoard {
     }
 
     // ---- 화면 쪽이 읽어 가는 조회용 메서드 ----
+
+    /** 쌓여 있는 칸의 색 번호. */
+    public int colorAt(int x, int y) {
+        return colorIds[y][x];
+    }
+
+    /** 지금 떨어지는 블록의 색 번호. */
+    public int getCurColor() {
+        return curColor;
+    }
 
     public Tetrominoes shapeAt(int x, int y) {
         return cells[y][x];
@@ -165,6 +183,7 @@ public class GameBoard {
             int x = curX + curPiece.x(i);
             int y = curY - curPiece.y(i);
             cells[y][x] = curPiece.getShape();
+            colorIds[y][x] = curColor;
         }
 
         // 꽉 찬 줄은 바로 지우지 않고 기록만 해 둔다. (Board가 깜빡인 뒤 finishClear()를 호출)
@@ -202,16 +221,20 @@ public class GameBoard {
     public void downLine(int row) {
         for(int y = row;y<HEIGHT-1;y++){
             cells[y]=cells[y+1];
+            colorIds[y]=colorIds[y+1];          // 색도 블록을 따라 내려와야 한다
         }
         cells[HEIGHT-1]=new Tetrominoes[WIDTH];
         Arrays.fill(cells[HEIGHT-1],Tetrominoes.NoShape);
+        colorIds[HEIGHT-1]=new int[WIDTH];
     }
 
     public void upLine(int row) {
         for(int y = HEIGHT-1;y>row;y--){
             cells[y]=cells[y-1];
+            colorIds[y]=colorIds[y-1];          // 색도 블록을 따라 올라가야 한다
         }
         cells[row]=new Tetrominoes[WIDTH];
         Arrays.fill(cells[row],Tetrominoes.NoShape);
+        colorIds[row]=new int[WIDTH];
     }
 }
