@@ -10,20 +10,19 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 
-/**
- * 게임 하나(GameBoard 하나)를 화면에 보여 주는 패널.
- * 게임 규칙은 GameBoard에 맡기고, 여기서는 그리기, 타이머, 상태바, 일시정지만 처리한다.
- *
- * 키 입력은 이 클래스가 직접 받지 않는다. Tetris가 창 단위로 키를 받아서
- * 아래의 moveLeft(), rotateLeft() 같은 메서드를 모든 보드에 호출해 준다.
- */
 public class Board extends JPanel implements ActionListener {
 
 	private final GameBoard game = new GameBoard();  // 게임 규칙 담당
 	private final Timer timer;                       // 블록을 주기적으로 떨어뜨리는 타이머
 	private final JLabel statusbar;                  // 이 보드 전용 상태바
 	private boolean isStarted = false;               // 게임 진행 중 여부
-	private boolean isPaused = false;                // 일시정지 여부
+	private boolean isPaused = false;// 일시정지 여부
+
+	private static final int FLASH_TOTAL = 6;
+	private final Timer flashTimer = new Timer(100, e -> onFlashTick());
+
+	private boolean flashOn = false;
+	private int flashCount = 0;
 
 	public Board(JLabel statusbar) {
 		this.statusbar = statusbar;
@@ -43,6 +42,8 @@ public class Board extends JPanel implements ActionListener {
 			return;
 
 		isStarted = true;
+		flashTimer.stop();
+		flashOn = false;
 		game.reset();
 		game.spawn();
 		timer.start();
@@ -65,7 +66,6 @@ public class Board extends JPanel implements ActionListener {
 		repaint();
 	}
 
-	// ---- 조작 메서드 (Tetris의 키 바인딩이 호출) ----
 
 	public void moveLeft() {
 		if (canControl()) {
@@ -122,6 +122,44 @@ public class Board extends JPanel implements ActionListener {
 			statusbar.setText("game over");
 		} else {
 			statusbar.setText(String.valueOf(game.getLinesRemoved()));
+			startFlash();
+		}
+		repaint();
+	}
+
+	private void startFlash(){
+		if(game.isClearing() && !flashTimer.isRunning()){
+			flashCount = 0;
+			flashOn = false;
+			flashTimer.start();
+		}
+	}
+
+	private void drawFlash(Graphics g, int boardTop){
+		if(!flashOn){
+			return;
+		}
+		g.setColor(Color.WHITE);
+		for(int row = 0;row<GameBoard.HEIGHT;++row){
+			if(game.isFlashRow(row)){
+				g.fillRect(0, boardTop+(GameBoard.HEIGHT-row-1)*squareHeight(),
+						GameBoard.WIDTH*squareWidth(), squareHeight());
+			}
+		}
+	}
+
+	private void onFlashTick(){
+		if(isPaused){
+			return;
+		}
+		flashOn=!flashOn;
+		flashCount++;
+
+		if(flashCount>=FLASH_TOTAL){
+			flashTimer.stop();
+			flashOn=false;
+			game.finishClear();
+			return;
 		}
 		repaint();
 	}
@@ -160,6 +198,7 @@ public class Board extends JPanel implements ActionListener {
 						game.currentType());
 			}
 		}
+		drawFlash(g, boardTop);
 	}
 
 	/** 한 칸(정사각형)을 색상과 입체감을 넣어 그린다. */

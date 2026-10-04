@@ -117,7 +117,7 @@ public class Tetris extends JFrame {
 	}
 
 	public static void main(String[] args) {
-		int count = 2;
+		int count = 1;
 		if (args.length > 0) {
 			try {
 				count = Integer.parseInt(args[0]);
