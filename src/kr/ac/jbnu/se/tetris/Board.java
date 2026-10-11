@@ -1,8 +1,10 @@
 package kr.ac.jbnu.se.tetris;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -23,15 +25,28 @@ public class Board extends JPanel implements ActionListener {
 
 	private boolean flashOn = false;
 	private int flashCount = 0;
+	private Runnable onUpdate;
+
+	private static final int LOCK_DELAY = 500;
+	private static final int MAX_LOCK_RESETS = 15;
+	private final Timer lockTimer = new Timer(LOCK_DELAY, e -> onLockTimeout());
+	private int lockResets = 0;
+
+	public void setOnUpdate(Runnable onUpdate){
+		this.onUpdate = onUpdate;
+	}
+
+
 
 	public Board(JLabel statusbar) {
 		this.statusbar = statusbar;
 		timer = new Timer(400, this);   // 400ms마다 actionPerformed 호출
-		timer.start();
+		lockTimer.setRepeats(false);
 	}
 
 	/** 타이머가 호출. 게임 규칙의 한 틱을 진행한 뒤 화면을 갱신한다. */
 	public void actionPerformed(ActionEvent e) {
+		if (!isStarted || isPaused) return;
 		game.tick();
 		afterAction();
 	}
@@ -44,6 +59,7 @@ public class Board extends JPanel implements ActionListener {
 		isStarted = true;
 		flashTimer.stop();
 		flashOn = false;
+		clearLockState();
 		game.reset();
 		game.spawn();
 		timer.start();
@@ -58,9 +74,11 @@ public class Board extends JPanel implements ActionListener {
 		isPaused = paused;
 		if (isPaused) {
 			timer.stop();
+			lockTimer.stop();
 			statusbar.setText("paused");
 		} else {
 			timer.start();
+			syncLock();
 			statusbar.setText(String.valueOf(game.getLinesRemoved()));
 		}
 		repaint();
@@ -69,34 +87,43 @@ public class Board extends JPanel implements ActionListener {
 
 	public void moveLeft() {
 		if (canControl()) {
-			game.moveLeft();
+			if (game.moveLeft()) {
+				resetLock();
+			}
 			afterAction();
 		}
 	}
 
 	public void moveRight() {
 		if (canControl()) {
-			game.moveRight();
+			if (game.moveRight()) {
+				resetLock();
+			}
 			afterAction();
 		}
 	}
 
 	public void rotateRight() {
 		if (canControl()) {
-			game.rotateRight();
+			if (game.rotateRight()) {
+				resetLock();
+			}
 			afterAction();
 		}
 	}
 
 	public void rotateLeft() {
 		if (canControl()) {
-			game.rotateLeft();
+			if (game.rotateLeft()) {
+				resetLock();
+			}
 			afterAction();
 		}
 	}
 
 	public void hardDrop() {
 		if (canControl()) {
+			clearLockState();
 			game.hardDrop();
 			afterAction();
 		}
@@ -109,22 +136,38 @@ public class Board extends JPanel implements ActionListener {
 		}
 	}
 
+	public void hold(){
+		if(canControl()){
+			if (game.hold()) {
+				clearLockState();
+			}
+			afterAction();
+		}
+	}
+
 	/** 게임이 끝났거나, 일시정지 중이거나, 조작할 블록이 없으면 입력을 무시한다. */
 	private boolean canControl() {
-		return isStarted && !isPaused && game.currentType() != Tetrominoes.NoShape;
+		return isStarted && !isPaused && !game.isGameOver()
+				&& !game.isClearing() && game.currentType() != Tetrominoes.NoShape;
 	}
 
 	/** 게임 상태를 상태바와 타이머에 반영하고 화면을 다시 그린다. */
 	private void afterAction() {
 		if (game.isGameOver()) {
 			timer.stop();
+			flashTimer.stop();
+			clearLockState();
 			isStarted = false;
 			statusbar.setText("game over");
 		} else {
-			statusbar.setText(String.valueOf(game.getLinesRemoved()));
+			statusbar.setText(isPaused ? "paused" : String.valueOf(game.getLinesRemoved()));
 			startFlash();
+			syncLock();
 		}
 		repaint();
+		if(onUpdate!=null){
+			onUpdate.run();
+		}
 	}
 
 	private void startFlash(){
@@ -159,6 +202,7 @@ public class Board extends JPanel implements ActionListener {
 			flashTimer.stop();
 			flashOn=false;
 			game.finishClear();
+			afterAction();
 			return;
 		}
 		repaint();
@@ -189,6 +233,8 @@ public class Board extends JPanel implements ActionListener {
 			}
 		}
 
+		drawGhost(g, boardTop);
+
 		// 2) 현재 떨어지는 블록
 		if (game.currentType() != Tetrominoes.NoShape) {
 			for (int i = 0; i < 4; ++i) {
@@ -199,6 +245,71 @@ public class Board extends JPanel implements ActionListener {
 			}
 		}
 		drawFlash(g, boardTop);
+	}
+
+	private void drawGhost(Graphics g, int boardTop){
+		Tetrominoes type = game.currentType();
+		if(type == Tetrominoes.NoShape){
+			return;
+		}
+		int drop = 0;
+		while(canDrop(drop+1)){
+			drop++;
+		}
+		Graphics2D g2 = (Graphics2D) g.create();
+		g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+		for(int i = 0;i<4;i++){
+			int y = game.pieceY(i)-drop;
+			drawSquare(g2, game.pieceX(i)*squareWidth(), boardTop+(GameBoard.HEIGHT-y-1)*squareHeight(),type);
+		}
+		g2.dispose();
+	}
+
+	private boolean canDrop(int d){
+		for(int i = 0; i<4;i++){
+			int y = game.pieceY(i)-d;
+			if(y<0||game.shapeAt(game.pieceX(i),y)!=Tetrominoes.NoShape){
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private boolean isGrounded() {
+		return game.currentType() != Tetrominoes.NoShape && !canDrop(1);
+	}
+
+	private void clearLockState() {
+		lockTimer.stop();
+		lockResets = 0;
+	}
+
+	private void onLockTimeout() {
+		if (!canControl() || !isGrounded()) return;
+		clearLockState();
+		game.lockPiece();
+		afterAction();
+	}
+
+	// Simple policy: landing again grants a fresh 500 ms.
+	// The reset count persists until lock, successful hold, or restart.
+	private void syncLock() {
+		if (!canControl()) {
+			lockTimer.stop();
+			return;
+		}
+		if (isGrounded()) {
+			if (!lockTimer.isRunning()) lockTimer.start();
+		} else {
+			lockTimer.stop();
+		}
+	}
+
+	private void resetLock(){
+		if(lockTimer.isRunning()&&lockResets<MAX_LOCK_RESETS){
+			lockResets++;
+			lockTimer.restart();
+		}
 	}
 
 	/** 한 칸(정사각형)을 색상과 입체감을 넣어 그린다. */
