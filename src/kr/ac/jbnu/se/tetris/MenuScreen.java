@@ -82,6 +82,11 @@ class MenuScreen extends DesignPanel {
 		return null;
 	}
 
+	/** Figma 상자는 항목 두 개 기준이다. 항목이 늘면 그만큼 아래로 늘린다. */
+	private Rectangle grown(Rectangle box) {
+		return new Rectangle(box.x, box.y, box.width, box.height + (items.length - 2) * ITEM_GAP);
+	}
+
 	@Override
 	void paintDesign(Graphics2D g) {
 		background(g, BACKGROUND);
@@ -93,8 +98,8 @@ class MenuScreen extends DesignPanel {
 		}
 
 		// 바깥 흐린 테두리 + 안쪽 크림 테두리 (두 겹)
-		outline(g, BOX_OUTER, DIM_CREAM, BOX_BORDER);
-		outline(g, BOX_INNER, Ui.CREAM, BOX_BORDER);
+		outline(g, grown(BOX_OUTER), DIM_CREAM, BOX_BORDER);
+		outline(g, grown(BOX_INNER), Ui.CREAM, BOX_BORDER);
 
 		for (int i = 0; i < items.length; i++) {
 			Color color = isSelectable(i) ? Color.WHITE : DIM_CREAM;

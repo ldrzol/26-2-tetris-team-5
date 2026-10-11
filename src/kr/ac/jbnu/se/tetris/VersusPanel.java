@@ -74,12 +74,30 @@ class VersusPanel extends DesignPanel {
 		Ui.bind(this, KeyEvent.VK_SPACE, "hard", playerBoard::hardDrop);
 		Ui.bind(this, KeyEvent.VK_C, "hold", playerBoard::hold);
 		Ui.bind(this, KeyEvent.VK_SHIFT, "hold2", playerBoard::hold);
+		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
+		onGear(this::pause);
 
 		playerBoard.start();
 		rivalBoard.start();
 		if (aiRival)
 			new AIplayer(rivalBoard).start();
 
+		clock.start();
+	}
+
+	/** 톱니(또는 Esc)를 누르면 두 판을 멈추고 Figma "리플레이 화면" 을 덮는다. */
+	private void pause() {
+		if (!playerBoard.isRunning())
+			return;
+		clock.stop();
+		playerBoard.setPaused(true);
+		rivalBoard.setPaused(true);
+		frame.showPause(kind, this::resume);
+	}
+
+	private void resume() {
+		playerBoard.setPaused(false);
+		rivalBoard.setPaused(false);
 		clock.start();
 	}
 

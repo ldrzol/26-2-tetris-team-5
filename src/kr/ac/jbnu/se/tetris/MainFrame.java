@@ -16,11 +16,13 @@ public class MainFrame extends JFrame {
 	static final String SINGLE = "single";     // Figma Desktop - 6
 	static final String VERSUS = "versus";     // Figma Desktop - 9
 	static final String PRACTICE = "practice"; // Figma Desktop - 9 (상대가 AI)
+	static final String SETTINGS = "settings"; // Figma 환경 설정 화면
+	static final String RANKING = "ranking";   // Figma 랭킹 화면
 
 	private final CardLayout cards = new CardLayout();
 	private final JPanel root = new JPanel(cards);
 	private JPanel current;
-	private GameOverOverlay overlay;
+	private JPanel overlay;
 
 	public MainFrame() {
 		root.setBackground(Ui.BG);
@@ -35,14 +37,23 @@ public class MainFrame extends JFrame {
 
 	/** 화면을 새로 만들어서 띄운다. 매번 새로 만들므로 다시 들어가면 늘 처음 상태다. */
 	void showScreen(String name) {
+		show(createScreen(name), name);
+	}
+
+	private void show(JPanel panel, String name) {
 		clearOverlay();
 		if (current != null)
 			root.remove(current);
-		current = createScreen(name);
+		current = panel;
 		root.add(current, name);
 		cards.show(root, name);
 		root.revalidate();
 		root.repaint();
+
+		// 게임이 아닌 화면의 톱니는 환경 설정으로 간다. 뒤로 가면 이 화면으로 돌아온다.
+		// (게임 화면은 톱니에 일시정지를 걸어 두므로 건드리지 않는다)
+		if (panel instanceof MenuScreen || panel instanceof RankingScreen)
+			((DesignPanel) panel).onGear(() -> show(new SettingsScreen(() -> showScreen(name)), SETTINGS));
 	}
 
 	private JPanel createScreen(String name) {
@@ -53,6 +64,8 @@ public class MainFrame extends JFrame {
 						i -> showScreen(i == 0 ? LOBBY : PRACTICE));
 			case LOBBY:
 				return new LobbyFrame(this);
+			case RANKING:
+				return new RankingScreen(() -> showScreen(SINGLE), () -> showScreen(MENU));
 			case SINGLE:
 				return new SinglePanel(this);
 			case VERSUS:
@@ -62,14 +75,35 @@ public class MainFrame extends JFrame {
 			default:
 				return new MenuScreen(new String[] { "TETRIS" }, new float[] { 250f }, 274,
 						new String[] { "1인 모드", "멀티 모드" },
-						i -> showScreen(i == 0 ? SINGLE : MULTI));
+						i -> showScreen(i == 0 ? RANKING : MULTI));
 		}
 	}
 
 	/** 게임 위에 반투명 GAME OVER 를 덮는다. kind 는 '다시 하기' 로 돌아갈 화면. */
 	void showGameOver(int score, String kind) {
+		showOverlay(new GameOverOverlay(score, () -> showScreen(kind), () -> showScreen(MENU)));
+	}
+
+	/**
+	 * 게임 중 톱니를 눌렀을 때. Figma "리플레이 화면".
+	 *
+	 * 게임 화면은 그대로 두고 덮개만 바꿔 끼우므로, 환경 설정에 다녀와도 판이 남아 있다.
+	 */
+	void showPause(String kind, Runnable onResume) {
+		showOverlay(new PauseOverlay(
+				() -> {
+					clearOverlay();
+					onResume.run();
+				},
+				() -> showScreen(kind),
+				() -> showScreen(MENU),
+				() -> showOverlay(new SettingsScreen(() -> showPause(kind, onResume)))));
+	}
+
+	/** 지금 화면 위에 덮개를 올린다. 먼저 올려 둔 덮개는 치운다. */
+	private void showOverlay(JPanel panel) {
 		clearOverlay();
-		overlay = new GameOverOverlay(score, () -> showScreen(kind), () -> showScreen(MENU));
+		overlay = panel;
 		overlay.setBounds(0, 0, getContentPane().getWidth(), getContentPane().getHeight());
 		getLayeredPane().add(overlay, JLayeredPane.PALETTE_LAYER);
 		getLayeredPane().revalidate();
