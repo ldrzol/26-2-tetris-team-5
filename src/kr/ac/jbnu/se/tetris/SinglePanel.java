@@ -6,6 +6,7 @@ import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.Timer;
 
 /** 1인 모드 화면. Figma "Desktop - 6". */
@@ -57,9 +58,38 @@ class SinglePanel extends DesignPanel {
 		Ui.bind(this, KeyEvent.VK_SPACE, "hard", board::hardDrop);
 		Ui.bind(this, KeyEvent.VK_C, "hold", board::hold);
 		Ui.bind(this, KeyEvent.VK_SHIFT, "hold2", board::hold);
+		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
+		onGear(this::pause);
 
 		board.start();
 		clock.start();
+	}
+
+	/** 톱니(또는 Esc)를 누르면 판을 멈추고 Figma "리플레이 화면" 을 덮는다. */
+	private void pause() {
+		if (!board.isRunning())
+			return;
+		clock.stop();
+		board.setPaused(true);
+		frame.showPause(MainFrame.SINGLE, this::resume);
+	}
+
+	private void resume() {
+		board.setPaused(false);
+		clock.start();
+	}
+
+	/**
+	 * 이름을 물어보고 랭킹 파일에 한 줄 남긴다. 취소하면 남기지 않는다.
+	 *
+	 * ponytail: 전용 입력 화면 대신 JOptionPane 을 쓴다. 판마다 한 번 뜨는 창이다.
+	 */
+	private void saveRanking() {
+		String name = JOptionPane.showInputDialog(this, "랭킹에 남길 이름", Settings.playerName);
+		if (name == null)
+			return;
+		Settings.playerName = Ranking.clean(name);
+		Ranking.add(Settings.playerName, board.score());
 	}
 
 	@Override
@@ -102,6 +132,7 @@ class SinglePanel extends DesignPanel {
 		if (remain <= 0 || board.getGame().isGameOver()) {
 			clock.stop();
 			board.setPaused(true);
+			saveRanking();
 			frame.showGameOver(board.score(), MainFrame.SINGLE);
 		}
 	}

@@ -8,11 +8,16 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GradientPaint;
 import java.awt.Image;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.font.TextAttribute;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.swing.ImageIcon;
@@ -36,6 +41,10 @@ abstract class DesignPanel extends JPanel {
 	static final Rectangle GEAR = new Rectangle(1856, 66, 78, 78);
 
 	static final Color DIM_CREAM = new Color(0x8B857A);
+
+	/** 게임 위에 덮개를 띄울 때 깔리는 반투명 검정. (디자인 0.61) */
+	static final Color SCRIM = new Color(11, 11, 11, 156);
+
 	/** 게임 화면에서 되풀이되는 글자 크기 (디자인 기준) */
 	static final float TITLE_SIZE = 48f, TAB_SIZE = 40f, VALUE_SIZE = 48f;
 
@@ -126,8 +135,52 @@ abstract class DesignPanel extends JPanel {
 			g.drawImage(img, px(r.x), py(r.y), sz(r.width), sz(r.height), this);
 	}
 
+	/** 좌우를 뒤집어 그린다. 오른쪽 화살표 그림을 왼쪽(뒤로) 화살표로 쓴다. */
+	void drawImageFlipped(Graphics2D g, Image img, Rectangle r) {
+		if (img == null)
+			return;
+		int x = px(r.x), y = py(r.y);
+		g.drawImage(img, x + sz(r.width), y, x, y + sz(r.height),
+				0, 0, img.getWidth(this), img.getHeight(this), this);
+	}
+
 	void gear(Graphics2D g) {
 		drawImage(g, GEAR_ICON, GEAR);
+	}
+
+	// ── 마우스 ──────────────────────────────────────────────────────────────
+
+	private List<Rectangle> clickAreas;
+	private List<Runnable> clickActions;
+
+	/** 디자인 좌표의 영역을 누르면 할 일. 생성자에서 한 번만 등록한다. */
+	void onClick(Rectangle designArea, Runnable action) {
+		if (clickAreas == null) {
+			clickAreas = new ArrayList<>();
+			clickActions = new ArrayList<>();
+			addMouseListener(new MouseAdapter() {
+				@Override
+				public void mousePressed(MouseEvent e) {
+					click(e.getPoint());
+				}
+			});
+		}
+		clickAreas.add(designArea);
+		clickActions.add(action);
+	}
+
+	/** 오른쪽 위 톱니를 눌렀을 때. */
+	void onGear(Runnable action) {
+		onClick(GEAR, action);
+	}
+
+	private void click(Point p) {
+		// 나중에 등록한 영역이 위에 있다고 본다
+		for (int i = clickAreas.size() - 1; i >= 0; i--)
+			if (screen(clickAreas.get(i)).contains(p)) {
+				clickActions.get(i).run();
+				return;
+			}
 	}
 
 	/**
@@ -153,10 +206,15 @@ abstract class DesignPanel extends JPanel {
 	/** 상자 위에 붙는 크림색 라벨. 글자는 탭 안에서 가운데 정렬. */
 	void tab(Graphics2D g, Rectangle r, String label, float size) {
 		fill(g, r, Ui.CREAM);
-		g.setColor(Color.BLACK);
+		textInBox(g, label, r, size, Color.BLACK);
+	}
+
+	/** 상자 한가운데에 글자를 놓는다. */
+	void textInBox(Graphics2D g, String s, Rectangle box, float size, Color color) {
+		g.setColor(color);
 		g.setFont(font(size));
-		int x = px(r.x) + (sz(r.width) - g.getFontMetrics().stringWidth(label)) / 2;
-		g.drawString(label, x, centeredBaseline(g, r.y, r.height));
+		int x = px(box.x) + (sz(box.width) - g.getFontMetrics().stringWidth(s)) / 2;
+		g.drawString(s, x, centeredBaseline(g, box.y, box.height));
 	}
 
 	/** 글자를 디자인 좌표 (x, top) 에 놓는다. top 은 글상자 위쪽. */

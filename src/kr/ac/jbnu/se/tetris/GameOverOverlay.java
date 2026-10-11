@@ -14,8 +14,6 @@ import java.awt.event.KeyEvent;
  */
 class GameOverOverlay extends DesignPanel {
 
-	private static final Color SCRIM = new Color(11, 11, 11, 156);   // 0.61 * 255
-
 	private static final Rectangle CARD = new Rectangle(485, 452, 1029, 519);
 
 	private static final int TITLE_TOP = 541, SCORE_TOP = 689;
