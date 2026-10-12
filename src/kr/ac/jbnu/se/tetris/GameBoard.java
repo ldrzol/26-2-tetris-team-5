@@ -1,8 +1,10 @@
 package kr.ac.jbnu.se.tetris;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Random;
 
@@ -35,8 +37,6 @@ public class GameBoard {
     private final Random rand = new Random();
     private static final int QUEUE_MIN = 7;
     private final Deque<Tetrominoes> queue = new ArrayDeque<>();
-    private Tetrominoes holdType = Tetrominoes.NoShape;
-    private boolean holdUsed = false;
 
     public GameBoard() {
         reset();
@@ -51,14 +51,12 @@ public class GameBoard {
         curPiece.setShape(Tetrominoes.NoShape);
         holdShape = Tetrominoes.NoShape;
         holdLocked = false;
-        rollNext();
         linesRemoved = 0;
         gameOver = false;
         spawnPending = false;
         flashRows.clear();
         queue.clear();
-        holdType = Tetrominoes.NoShape;
-        holdUsed = false;
+        rollNext();
     }
 
     private void refillQueue(){
@@ -81,9 +79,17 @@ public class GameBoard {
         return next;
     }
 
+    /**
+     * 앞으로 나올 블록을 순서대로 n개 미리 본다.
+     * 맨 앞은 이미 큐에서 꺼내 둔 nextShape 이므로 그것부터 넣어야
+     * Nextpanel 의 예고와 실제로 나오는 순서가 어긋나지 않는다.
+     */
     public List<Tetrominoes> peekNext(int n){
         refillQueue();
         List<Tetrominoes> result = new ArrayList<>();
+        if(n > 0 && nextShape != null && nextShape != Tetrominoes.NoShape){
+            result.add(nextShape);
+        }
         for(Tetrominoes t : queue){
             if(result.size()>=n){
                 break;
@@ -117,9 +123,9 @@ public class GameBoard {
         return true;
     }
 
-    /** 다음 블록을 새로 뽑는다. (NoShape 와 GarbageShape 는 제외) */
+    /** 다음 블록을 7bag 큐에서 꺼낸다. 색은 따로 무작위로 고른다. */
     private void rollNext() {
-        nextShape = Tetrominoes.values()[1 + rng.nextInt(7)];
+        nextShape = nextFromQueue();
         nextColor = rng.nextInt(COLOR_COUNT);
     }
 
@@ -216,8 +222,8 @@ public class GameBoard {
         return curPiece.getShape();
     }
 
-    public Tetrominoes getHoldType(){ return holdType; }
-    public boolean isHoldUsed(){ return holdUsed; }
+    public Tetrominoes getHoldType(){ return holdShape; }
+    public boolean isHoldUsed(){ return holdLocked; }
 
     public Shape getCurPiece() {
         return curPiece;
@@ -306,8 +312,6 @@ public class GameBoard {
             cells[y][x] = curPiece.getShape();
             colorIds[y][x] = curColor;
         }
-        holdUsed = false;
-
         // 꽉 찬 줄은 바로 지우지 않고 기록만 해 둔다. (Board가 깜빡인 뒤 finishClear()를 호출)
         for (int i = 0; i < HEIGHT; ++i) {
             if (isLineFull(i))
@@ -319,18 +323,6 @@ public class GameBoard {
         } else {
             spawn();
         }
-    }
-
-    public boolean hold(){
-        if(gameOver||isClearing()||holdUsed||curPiece.getShape()==Tetrominoes.NoShape){
-            return false;
-        }
-        Tetrominoes current = curPiece.getShape();
-        Tetrominoes next = (holdType==Tetrominoes.NoShape) ? nextFromQueue() : holdType;
-        holdType = current;
-        holdUsed = true;
-        spawnPiece(next);
-        return true;
     }
 
     /** 깜빡임이 끝난 뒤 호출. 기록해 둔 줄을 실제로 지우고, 새 블록은 다음 틱에 만든다. */

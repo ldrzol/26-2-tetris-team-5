@@ -4,6 +4,7 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -355,10 +356,70 @@ public class Board extends JPanel implements ActionListener {
 		}
 	}
 
-	public void hold() {
-		if (canControl()) {
-			game.hold();
-			afterAction();
+	private void drawGhost(Graphics g, int boardTop) {
+		Tetrominoes type = game.currentType();
+		if (type == Tetrominoes.NoShape) {
+			return;
+		}
+		int drop = 0;
+		while (canDrop(drop + 1)) {
+			drop++;
+		}
+		Graphics2D g2 = (Graphics2D) g.create();
+		g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+		for (int i = 0; i < 4; i++) {
+			int y = game.pieceY(i) - drop;
+			drawSquare(g2, game.pieceX(i) * squareWidth(),
+					boardTop + (GameBoard.VISIBLE_HEIGHT - y - 1) * squareHeight(),
+					type, game.getCurColor());
+		}
+		g2.dispose();
+	}
+
+	private boolean canDrop(int d) {
+		for (int i = 0; i < 4; i++) {
+			int y = game.pieceY(i) - d;
+			if (y < 0 || game.shapeAt(game.pieceX(i), y) != Tetrominoes.NoShape) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private boolean isGrounded() {
+		return game.currentType() != Tetrominoes.NoShape && !canDrop(1);
+	}
+
+	private void clearLockState() {
+		lockTimer.stop();
+		lockResets = 0;
+	}
+
+	private void onLockTimeout() {
+		if (!canControl() || !isGrounded()) return;
+		clearLockState();
+		game.lockPiece();
+		afterAction();
+	}
+
+	/** 바닥에 닿아 있으면 락 타이머를 돌리고, 떠 있으면 멈춘다. */
+	private void syncLock() {
+		if (!canControl()) {
+			lockTimer.stop();
+			return;
+		}
+		if (isGrounded()) {
+			if (!lockTimer.isRunning()) lockTimer.start();
+		} else {
+			lockTimer.stop();
+		}
+	}
+
+	/** 바닥에서 움직이면 락딜레이를 다시 준다. 단 MAX_LOCK_RESETS 번까지만. */
+	private void resetLock() {
+		if (lockTimer.isRunning() && lockResets < MAX_LOCK_RESETS) {
+			lockResets++;
+			lockTimer.restart();
 		}
 	}
 
