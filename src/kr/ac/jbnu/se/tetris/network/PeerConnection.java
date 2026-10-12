@@ -18,7 +18,7 @@ public class PeerConnection {
 	private final Socket socket;
 	private final ObjectOutputStream out;
 	private final ObjectInputStream in;
-	private final Consumer<Object> listener;
+	private volatile Consumer<Object> listener;
 
 	/** 방을 열고 상대가 들어올 때까지 기다린다. 들어오면 대기용 소켓은 닫는다. */
 	public static PeerConnection host(int port, Consumer<Object> listener) throws IOException {
@@ -34,10 +34,13 @@ public class PeerConnection {
 
 	private static PeerConnection listening(Socket socket, Consumer<Object> listener) throws IOException {
 		PeerConnection connection = new PeerConnection(socket, listener);
-		Thread thread = new Thread(connection::receiveLoop);
-		thread.setDaemon(true);   // 연결이 남아 있어도 창을 닫으면 프로그램이 끝나야 한다
-		thread.start();
+		connection.startListening();
 		return connection;
+	}
+
+	/** NetworkListener 로 직접 연결을 만드는 쪽(GameClient/GameServer)용. 수신은 startListening() 으로 따로 시작한다. */
+	public PeerConnection(Socket socket, NetworkListener listener) throws IOException {
+		this(socket, (Consumer<Object>) listener::onMessageReceived);
 	}
 
 	private PeerConnection(Socket socket, Consumer<Object> listener) throws IOException {
@@ -46,6 +49,18 @@ public class PeerConnection {
 		// 양쪽 모두 out 을 먼저 만들어야 한다. in 은 상대가 보낸 머리말을 읽을 때까지 멈춘다.
 		out = new ObjectOutputStream(socket.getOutputStream());
 		in = new ObjectInputStream(socket.getInputStream());
+	}
+
+	/** 받은 메시지를 listener 로 넘기는 전용 스레드를 띄운다. */
+	public void startListening() {
+		Thread thread = new Thread(this::receiveLoop);
+		thread.setDaemon(true);   // 연결이 남아 있어도 창을 닫으면 프로그램이 끝나야 한다
+		thread.start();
+	}
+
+	/** 연결을 만든 뒤에 받는 쪽을 바꾼다. (화면이 바뀔 때 쓴다) */
+	public void setListener(Consumer<Object> listener) {
+		this.listener = listener;
 	}
 
 	private void receiveLoop() {
