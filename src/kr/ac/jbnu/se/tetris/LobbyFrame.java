@@ -1,126 +1,108 @@
 package kr.ac.jbnu.se.tetris;
-import  java.awt.BorderLayout;
-import java.awt.FlowLayout;
+
 import java.io.IOException;
 import java.net.InetAddress;
-import javax.swing.*;
 
-import kr.ac.jbnu.se.tetris.network.GameClient;
-import kr.ac.jbnu.se.tetris.network.GameServer;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
 
-public class LobbyFrame extends JFrame{
-    private static final int PORT = 5000;
-    private final JLabel statusLabel = new JLabel("방을 만들거나 참가하세요", JLabel.CENTER);
-    private final JButton createButton = new JButton("방 만들기");
-    private final JButton joinButton = new JButton("방 참가");
-    private PeerConnection connection;
-    private String mode;
+/**
+ * 2인 대전 로비. Figma "Desktop - 12".
+ *
+ * 메뉴 모양은 다른 메뉴 화면과 같고, 두 항목이 방 만들기 / 방 참가다.
+ * 연결 진행 상황은 디자인에 없지만 없으면 쓸 수 없으므로 상자 아래에 한 줄로 띄운다.
+ */
+class LobbyFrame extends MenuScreen {
 
-    public LobbyFrame(){
-        JPanel buttons = new JPanel(new FlowLayout());
-        buttons.add(createButton);
-        buttons.add(joinButton);
+	private static final int PORT = 5000;
 
-        add(statusLabel, BorderLayout.CENTER);
-        add(buttons, BorderLayout.SOUTH);
+	private final MainFrame frame;
+	private PeerConnection connection;
+	private String status = null;
+	private boolean busy = false;
 
-        createButton.addActionListener(e-> createRoom());
-        joinButton.addActionListener(e-> joinRoom());
+	LobbyFrame(MainFrame frame) {
+		super(new String[] { "멀티 모드", "- 2인 -" }, new float[] { 128f, 96f }, 252,
+				new String[] { "방 만들기", "방 참가" }, null);
+		this.frame = frame;
+	}
 
-        setTitle("대전 로비");
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(320,160);
-    }
-    private void createRoom(){
-        String[] options = {"아이템 대전", "땅따먹기"};
-        int choice = JOptionPane.showOptionDialog(this, "게임 모드를 고르세요", "모드 선택",
-                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-        if (choice < 0) {
-            return;
-        }
-        mode = (choice == 0) ? "ITEM" : "SHARED";
+	@Override
+	void select(int index) {
+		if (index == 0)
+			createRoom();
+		else
+			joinRoom();
+	}
 
-        setButtonsEnabled(false);
+	@Override
+	boolean isSelectable(int index) {
+		return !busy;
+	}
 
-        try{
-            String myIp= InetAddress.getLocalHost().getHostAddress();
-            statusLabel.setText("내 IP: "+ myIp + "(포트"+PORT+")상대를 기다리는 중...");
-        }catch (IOException e){
-            statusLabel.setText("내 IP를 알 수 없음. 상대를 기다리는 중...");
-        }
-        new Thread(()->{
-            try{
-                connection = new GameServer().waitForClient(PORT, message-> onMessage(message));
-                SwingUtilities.invokeLater(()->onConnected("상대가 들어왔습니다"));
-            }catch (IOException e){
-                SwingUtilities.invokeLater(() -> onFailed("방 만들기 실패: " + e.getMessage()));
-            }
-        }).start();
-    }
-    private void joinRoom(){
-        String ip = JOptionPane.showInputDialog(this, "방장의 IP를 입력하세요");
-        if (ip == null || ip.trim().isEmpty()) {
-            return;
-        }
-        setButtonsEnabled(false);
-        statusLabel.setText(ip.trim() + " 에 접속하는 중...");
-        new Thread(() -> {
-            try {
-                connection = new GameClient().connectTo(ip.trim(), PORT, message -> onMessage(message));
-                SwingUtilities.invokeLater(() -> onConnected("방에 들어갔습니다"));
-            } catch (IOException e) {
-                SwingUtilities.invokeLater(() -> onFailed("접속 실패: " + e.getMessage()));
-            }
-        }).start();
-    }
-    private void onConnected(String text) {
-        if (mode == null) {
-            statusLabel.setText(text + " - 방장이 시작하기를 기다리는 중...");
-            connection.send("READY");
-        } else {
-            statusLabel.setText(text + " - 상대 준비를 기다리는 중...");
-        }
-    }
-    private void onFailed(String text) {
-        statusLabel.setText(text);
-        setButtonsEnabled(true);
-    }
-    private void onMessage(Object message) {
-        if (!(message instanceof String)) {
-            return;
-        }
-        String text = (String) message;
-        SwingUtilities.invokeLater(() -> handleText(text));
-    }
+	@Override
+	String status() {
+		return status;
+	}
 
-    private void handleText(String text) {
-        if (mode != null && text.equals("READY")) {
-            connection.send("MODE:" + mode);
-            openGame(mode, true);
-        } else if (mode == null && text.startsWith("MODE:")) {
-            openGame(text.substring(5), false);
-        }
-    }
+	private void createRoom() {
+		busy = true;
+		try {
+			status = "내 IP: " + InetAddress.getLocalHost().getHostAddress()
+					+ " (포트 " + PORT + ") - 상대를 기다리는 중...";
+		} catch (IOException e) {
+			status = "내 IP를 알 수 없음. 상대를 기다리는 중...";
+		}
+		repaint();
 
-    private void openGame(String selectedMode, boolean isHost) {
-        JFrame game;
-        if (selectedMode.equals("SHARED")) {
-            game = isHost ? new SharedHostFrame(connection) : new SharedClientFrame(connection);
-        } else {
-            game = new DuelFrame(connection);
-        }
-        game.setLocationRelativeTo(null);
-        game.setVisible(true);
-        dispose();
-    }
-    private void setButtonsEnabled(boolean enabled) {
-        createButton.setEnabled(enabled);
-        joinButton.setEnabled(enabled);
-    }
-    public static void main(String[] args) {
-        LobbyFrame frame = new LobbyFrame();
-        frame.setLocationRelativeTo(null);
-        frame.setVisible(true);
-    }
+		new Thread(() -> {
+			try {
+				connection = PeerConnection.host(PORT, this::onMessage);
+				SwingUtilities.invokeLater(() -> onConnected("상대가 들어왔습니다"));
+			} catch (IOException e) {
+				SwingUtilities.invokeLater(() -> onFailed("방 만들기 실패: " + e.getMessage()));
+			}
+		}).start();
+	}
+
+	private void joinRoom() {
+		String ip = JOptionPane.showInputDialog(this, "방장의 IP를 입력하세요");
+		if (ip == null || ip.trim().isEmpty())
+			return;
+
+		busy = true;
+		status = ip.trim() + " 에 접속하는 중...";
+		repaint();
+
+		new Thread(() -> {
+			try {
+				connection = PeerConnection.connect(ip.trim(), PORT, this::onMessage);
+				SwingUtilities.invokeLater(() -> onConnected("방에 들어갔습니다"));
+			} catch (IOException e) {
+				SwingUtilities.invokeLater(() -> onFailed("접속 실패: " + e.getMessage()));
+			}
+		}).start();
+	}
+
+	private void onConnected(String text) {
+		status = text + " - 연결 완료!";
+		connection.send("안녕! 연결 확인");
+		repaint();
+		frame.showScreen(MainFrame.VERSUS);
+	}
+
+	private void onFailed(String text) {
+		busy = false;
+		status = text;
+		repaint();
+	}
+
+	private void onMessage(Object message) {
+		SwingUtilities.invokeLater(() -> {
+			status = "받은 메시지: " + message;
+			repaint();
+		});
+	}
 }
