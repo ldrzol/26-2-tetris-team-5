@@ -71,6 +71,15 @@ public class Tetris extends JFrame {
 		p.add(board, BorderLayout.CENTER);
 		p.add(status, BorderLayout.SOUTH);
 
+		Nextpanel next = new Nextpanel(board.getGame(), cell*5);
+		Holdpanel hold = new Holdpanel(board.getGame(), cell*5);
+		board.setOnUpdate(()->{
+			next.repaint();
+			hold.repaint();
+		});
+		p.add(next, BorderLayout.EAST);
+		p.add(hold, BorderLayout.WEST);
+
 		board.start();
 		return p;
 	}
@@ -88,6 +97,7 @@ public class Tetris extends JFrame {
 		bind(KeyEvent.VK_SPACE, "drop", Board::hardDrop);
 		bind(KeyEvent.VK_D, "softDrop", Board::softDrop);
 		bind(KeyEvent.VK_R, "Restart", Board::start);
+		bind(KeyEvent.VK_C, "hold", Board::hold);
 
 		// 일시정지는 보드 하나가 아니라 전체 상태를 한 곳에서 관리한다
 		Runnable togglePause = () -> {
