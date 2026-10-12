@@ -15,6 +15,7 @@ public class LobbyFrame extends JFrame{
     private final JButton createButton = new JButton("방 만들기");
     private final JButton joinButton = new JButton("방 참가");
     private PeerConnection connection;
+    private String mode;
 
     public LobbyFrame(){
         JPanel buttons = new JPanel(new FlowLayout());
@@ -32,6 +33,14 @@ public class LobbyFrame extends JFrame{
         setSize(320,160);
     }
     private void createRoom(){
+        String[] options = {"아이템 대전", "땅따먹기"};
+        int choice = JOptionPane.showOptionDialog(this, "게임 모드를 고르세요", "모드 선택",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+        if (choice < 0) {
+            return;
+        }
+        mode = (choice == 0) ? "ITEM" : "SHARED";
+
         setButtonsEnabled(false);
 
         try{
@@ -66,15 +75,44 @@ public class LobbyFrame extends JFrame{
         }).start();
     }
     private void onConnected(String text) {
-        statusLabel.setText(text + " - 연결 완료!");
-        connection.send("안녕! 연결 확인");
+        if (mode == null) {
+            statusLabel.setText(text + " - 방장이 시작하기를 기다리는 중...");
+            connection.send("READY");
+        } else {
+            statusLabel.setText(text + " - 상대 준비를 기다리는 중...");
+        }
     }
     private void onFailed(String text) {
         statusLabel.setText(text);
         setButtonsEnabled(true);
     }
     private void onMessage(Object message) {
-        SwingUtilities.invokeLater(() -> statusLabel.setText("받은 메시지: " + message));
+        if (!(message instanceof String)) {
+            return;
+        }
+        String text = (String) message;
+        SwingUtilities.invokeLater(() -> handleText(text));
+    }
+
+    private void handleText(String text) {
+        if (mode != null && text.equals("READY")) {
+            connection.send("MODE:" + mode);
+            openGame(mode, true);
+        } else if (mode == null && text.startsWith("MODE:")) {
+            openGame(text.substring(5), false);
+        }
+    }
+
+    private void openGame(String selectedMode, boolean isHost) {
+        JFrame game;
+        if (selectedMode.equals("SHARED")) {
+            game = isHost ? new SharedHostFrame(connection) : new SharedClientFrame(connection);
+        } else {
+            game = new DuelFrame(connection);
+        }
+        game.setLocationRelativeTo(null);
+        game.setVisible(true);
+        dispose();
     }
     private void setButtonsEnabled(boolean enabled) {
         createButton.setEnabled(enabled);
