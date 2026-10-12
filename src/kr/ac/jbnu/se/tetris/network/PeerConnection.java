@@ -5,7 +5,7 @@ public class PeerConnection {
     private Socket socket;
     private ObjectOutputStream out;
     private ObjectInputStream in;
-    private NetworkListener listener;
+    private volatile NetworkListener listener;  // ← 이렇게 (단어 하나 추가)
     public PeerConnection(Socket socket, NetworkListener
             listener) throws IOException{
         this.socket=socket;
@@ -28,11 +28,16 @@ public class PeerConnection {
     }
         public void send(Object message) {
             try{
-                out.writeObject(message);
+                out.writeObject(message);       // ← 31번째 줄 (원래 있음)
+                out.reset();                    // ← 새로 추가 (32번째 줄)
             } catch (IOException e) {
                 System.out.println("전송실패:"+ e.getMessage());
             }
         }
+    public void setListener(NetworkListener listener) {
+        this.listener = listener;
+    }
+
         public void close(){
             try{
                 socket.close();
