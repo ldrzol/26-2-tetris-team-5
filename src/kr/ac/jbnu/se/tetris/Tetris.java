@@ -45,7 +45,7 @@ public class Tetris extends JFrame {
 		// 화면의 90% x 85% 안에 들어오도록 한 칸의 픽셀 크기 결정
 		Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
 		int maxByWidth = (screen.width * 9 / 10 / cols) / GameBoard.WIDTH;
-		int maxByHeight = (screen.height * 85 / 100 / rows - STATUS_HEIGHT) / GameBoard.HEIGHT;
+		int maxByHeight = (screen.height * 85 / 100 / rows - STATUS_HEIGHT) / GameBoard.VISIBLE_HEIGHT;
 		int cell = Math.max(MIN_CELL, Math.min(BASE_CELL, Math.min(maxByWidth, maxByHeight)));
 
 		JPanel root = new JPanel(new GridLayout(rows, cols));
@@ -64,7 +64,7 @@ public class Tetris extends JFrame {
 	private JPanel makePlayer(int cell) {
 		JLabel status = new JLabel(" 0");
 		Board board = new Board(status);
-		board.setPreferredSize(new Dimension(cell * GameBoard.WIDTH, cell * GameBoard.HEIGHT));
+		board.setPreferredSize(new Dimension(cell * GameBoard.WIDTH, cell * GameBoard.VISIBLE_HEIGHT));
 		boards.add(board);
 
 		JPanel p = new JPanel(new BorderLayout());

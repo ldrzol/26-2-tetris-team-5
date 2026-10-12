@@ -5,15 +5,26 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.ArrayDeque;
-import java.util.Deque;
 
 public class GameBoard {
 
     public static final int WIDTH = 10;   // 게임판 가로 칸 수
-    public static final int HEIGHT = 22;  // 게임판 세로 칸 수
+    public static final int HEIGHT = 22;  // 게임판 세로 칸 수 (위 2줄은 블록 생성용 숨김 영역)
+
+    public static final int VISIBLE_HEIGHT = 20;  // 화면에 그리는 줄 수
+
+    public static final int COLOR_COUNT = 7;   // 블록 색 가짓수 (Board.PALETTE 와 같아야 함)
 
     protected final Tetrominoes[][] cells = new Tetrominoes[HEIGHT][WIDTH]; // 쌓여 있는 블록들
+    protected final int[][] colorIds = new int[HEIGHT][WIDTH];              // cells 와 같은 자리의 색 번호
+    private final Random rng = new Random();
+    private int curColor = 0;               // 지금 떨어지는 블록의 색 번호
+
+    private Tetrominoes nextShape;          // 다음에 나올 블록
+    private int nextColor;
+    private Tetrominoes holdShape = Tetrominoes.NoShape;   // 보관해 둔 블록 (없으면 NoShape)
+    private int holdColor;
+    private boolean holdLocked = false;     // 블록 하나당 홀드는 한 번만
     private Shape curPiece = new Shape();   // 현재 조작 중인 블록
     private int curX = 0;                   // 현재 블록 기준점 x
     private int curY = 0;                   // 현재 블록 기준점 y
@@ -35,8 +46,12 @@ public class GameBoard {
     public void reset() {
         for (int i = 0; i < HEIGHT; ++i){
             Arrays.fill(cells[i],Tetrominoes.NoShape);
+            Arrays.fill(colorIds[i],0);
         }
         curPiece.setShape(Tetrominoes.NoShape);
+        holdShape = Tetrominoes.NoShape;
+        holdLocked = false;
+        rollNext();
         linesRemoved = 0;
         gameOver = false;
         spawnPending = false;
@@ -78,13 +93,19 @@ public class GameBoard {
         return result;
     }
 
-    /** 새 블록 생성. 시작 위치에 놓을 수 없으면 게임 오버가 되고 false를 반환한다. */
+    /** 새 블록 생성. 예고된 next 를 꺼내 쓰고 다음 것을 새로 뽑는다. */
     public boolean spawn() {
-        return spawnPiece(nextFromQueue());
+        Tetrominoes shape = nextShape;
+        int color = nextColor;
+        rollNext();
+        holdLocked = false;        // 새 블록이 나왔으니 홀드를 다시 쓸 수 있다
+        return place(shape, color);
     }
 
-    private boolean spawnPiece(Tetrominoes type){
-        curPiece.setShape(type);
+    /** 주어진 블록을 시작 위치에 놓는다. 놓을 수 없으면 게임 오버. */
+    private boolean place(Tetrominoes shape, int color) {
+        curPiece.setShape(shape);
+        curColor = color;
         curX = WIDTH / 2 + 1;
         curY = HEIGHT - 1 + curPiece.minY();
 
@@ -93,6 +114,34 @@ public class GameBoard {
             gameOver = true;
             return false;
         }
+        return true;
+    }
+
+    /** 다음 블록을 새로 뽑는다. (NoShape 와 GarbageShape 는 제외) */
+    private void rollNext() {
+        nextShape = Tetrominoes.values()[1 + rng.nextInt(7)];
+        nextColor = rng.nextInt(COLOR_COUNT);
+    }
+
+    /**
+     * 지금 블록을 보관하고, 보관해 둔 블록을 꺼내 쓴다. 보관함이 비어 있으면
+     * 다음 블록을 대신 꺼낸다. 블록 하나당 한 번만 쓸 수 있다.
+     */
+    public boolean hold() {
+        if (holdLocked || gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape)
+            return false;
+
+        Tetrominoes keptShape = curPiece.getShape();
+        int keptColor = curColor;
+
+        if (holdShape == Tetrominoes.NoShape)
+            spawn();
+        else
+            place(holdShape, holdColor);
+
+        holdShape = keptShape;
+        holdColor = keptColor;
+        holdLocked = true;         // spawn() 이 풀어 놓은 것을 다시 잠근다
         return true;
     }
 
@@ -149,6 +198,16 @@ public class GameBoard {
 
     // ---- 화면 쪽이 읽어 가는 조회용 메서드 ----
 
+    /** 쌓여 있는 칸의 색 번호. */
+    public int colorAt(int x, int y) {
+        return colorIds[y][x];
+    }
+
+    /** 지금 떨어지는 블록의 색 번호. */
+    public int getCurColor() {
+        return curColor;
+    }
+
     public Tetrominoes shapeAt(int x, int y) {
         return cells[y][x];
     }
@@ -180,6 +239,23 @@ public class GameBoard {
     /** 현재 블록 i번째 사각형의 보드상 y 좌표 */
     public int pieceY(int i) {
         return curY - curPiece.y(i);
+    }
+
+    public Tetrominoes nextType() {
+        return nextShape;
+    }
+
+    public int getNextColor() {
+        return nextColor;
+    }
+
+    /** 보관해 둔 블록. 비어 있으면 NoShape. */
+    public Tetrominoes holdType() {
+        return holdShape;
+    }
+
+    public int getHoldColor() {
+        return holdColor;
     }
 
     public int getLinesRemoved() {
@@ -228,6 +304,7 @@ public class GameBoard {
             int x = curX + curPiece.x(i);
             int y = curY - curPiece.y(i);
             cells[y][x] = curPiece.getShape();
+            colorIds[y][x] = curColor;
         }
         holdUsed = false;
 
@@ -278,16 +355,20 @@ public class GameBoard {
     public void downLine(int row) {
         for(int y = row;y<HEIGHT-1;y++){
             cells[y]=cells[y+1];
+            colorIds[y]=colorIds[y+1];          // 색도 블록을 따라 내려와야 한다
         }
         cells[HEIGHT-1]=new Tetrominoes[WIDTH];
         Arrays.fill(cells[HEIGHT-1],Tetrominoes.NoShape);
+        colorIds[HEIGHT-1]=new int[WIDTH];
     }
 
     public void upLine(int row) {
         for(int y = HEIGHT-1;y>row;y--){
             cells[y]=cells[y-1];
+            colorIds[y]=colorIds[y-1];          // 색도 블록을 따라 올라가야 한다
         }
         cells[row]=new Tetrominoes[WIDTH];
         Arrays.fill(cells[row],Tetrominoes.NoShape);
+        colorIds[row]=new int[WIDTH];
     }
 }
