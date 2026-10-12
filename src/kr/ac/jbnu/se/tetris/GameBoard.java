@@ -32,6 +32,11 @@ public class GameBoard {
     private boolean gameOver = false;       // 게임 오버 여부
     private boolean spawnPending = false;   // 줄이 지워져서 새 블록을 다음 틱에 만들어야 하는 상태
     private final List<Integer> flashRows = new ArrayList<>(); // 깜빡이는 중인(곧 지워질) 줄들
+    private final Random rand = new Random();
+    private static final int QUEUE_MIN = 7;
+    private final Deque<Tetrominoes> queue = new ArrayDeque<>();
+    private Tetrominoes holdType = Tetrominoes.NoShape;
+    private boolean holdUsed = false;
 
     public GameBoard() {
         reset();
@@ -51,6 +56,41 @@ public class GameBoard {
         gameOver = false;
         spawnPending = false;
         flashRows.clear();
+        queue.clear();
+        holdType = Tetrominoes.NoShape;
+        holdUsed = false;
+    }
+
+    private void refillQueue(){
+        while(queue.size()<QUEUE_MIN){
+            List<Tetrominoes> bag = new ArrayList<>();
+            for(Tetrominoes t: Tetrominoes.values()){
+                if(t!=Tetrominoes.NoShape && t!=Tetrominoes.GarbageShape){
+                    bag.add(t);
+                }
+            }
+            Collections.shuffle(bag, rand);
+            queue.addAll(bag);
+        }
+    }
+
+    private Tetrominoes nextFromQueue(){
+        refillQueue();
+        Tetrominoes next = queue.pollFirst();
+        refillQueue();
+        return next;
+    }
+
+    public List<Tetrominoes> peekNext(int n){
+        refillQueue();
+        List<Tetrominoes> result = new ArrayList<>();
+        for(Tetrominoes t : queue){
+            if(result.size()>=n){
+                break;
+            }
+            result.add(t);
+        }
+        return result;
     }
 
     /** 새 블록 생성. 예고된 next 를 꺼내 쓰고 다음 것을 새로 뽑는다. */
@@ -128,23 +168,32 @@ public class GameBoard {
     }
 
     public boolean rotateLeft() {
-        return tryMove(curPiece.rotateLeft(), curX, curY);
+        return tryRotate(curPiece.rotateLeft());
     }
 
     public boolean rotateRight() {
-        return tryMove(curPiece.rotateRight(), curX, curY);
+        return tryRotate(curPiece.rotateRight());
     }
 
-    public boolean moveDown() {
-        if (tryMove(curPiece, curX, curY - 1))
-            return true;
-        lockPiece();
+    private boolean tryRotate(Shape rotated) {
+        int[] kicks = { 0, -1, 1, -2, 2 };
+        for (int dx : kicks) {
+            if (tryMove(rotated, curX + dx, curY))
+                return true;
+        }
         return false;
+    }
+    public boolean moveDown() {
+        if (gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape) {
+            return false;
+        }
+        return tryMove(curPiece, curX, curY - 1);
     }
 
     public void hardDrop() {
         while (moveDown()) {
         }
+        lockPiece();
     }
 
     // ---- 화면 쪽이 읽어 가는 조회용 메서드 ----
@@ -166,6 +215,10 @@ public class GameBoard {
     public Tetrominoes currentType() {
         return curPiece.getShape();
     }
+
+    public Tetrominoes getHoldType(){ return holdType; }
+    public boolean isHoldUsed(){ return holdUsed; }
+
     public Shape getCurPiece() {
         return curPiece;
     }
@@ -243,13 +296,17 @@ public class GameBoard {
     }
 
     /** 현재 블록을 보드에 기록하고 줄을 지운다. 줄이 지워졌으면 새 블록은 다음 틱에 만든다. */
-    private void lockPiece() {
+    public void lockPiece() {
+        if (gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape) {
+            return;
+        }
         for (int i = 0; i < 4; ++i) {
             int x = curX + curPiece.x(i);
             int y = curY - curPiece.y(i);
             cells[y][x] = curPiece.getShape();
             colorIds[y][x] = curColor;
         }
+        holdUsed = false;
 
         // 꽉 찬 줄은 바로 지우지 않고 기록만 해 둔다. (Board가 깜빡인 뒤 finishClear()를 호출)
         for (int i = 0; i < HEIGHT; ++i) {
@@ -262,6 +319,18 @@ public class GameBoard {
         } else {
             spawn();
         }
+    }
+
+    public boolean hold(){
+        if(gameOver||isClearing()||holdUsed||curPiece.getShape()==Tetrominoes.NoShape){
+            return false;
+        }
+        Tetrominoes current = curPiece.getShape();
+        Tetrominoes next = (holdType==Tetrominoes.NoShape) ? nextFromQueue() : holdType;
+        holdType = current;
+        holdUsed = true;
+        spawnPiece(next);
+        return true;
     }
 
     /** 깜빡임이 끝난 뒤 호출. 기록해 둔 줄을 실제로 지우고, 새 블록은 다음 틱에 만든다. */
