@@ -19,6 +19,8 @@ public class GameBoard {
 
     protected final Tetrominoes[][] cells = new Tetrominoes[HEIGHT][WIDTH]; // 쌓여 있는 블록들
     protected final int[][] colorIds = new int[HEIGHT][WIDTH];              // cells 와 같은 자리의 색 번호
+    protected final int[][] age = new int[HEIGHT][WIDTH];                   // [기믹] 칸이 놓인 뒤 지난 초 (FADE 용)
+    private final Gimmick gimmick = new Gimmick(this);                      // [기믹] 기믹 담당
     private final Random rng = new Random();
     private int curColor = 0;               // 지금 떨어지는 블록의 색 번호
 
@@ -42,11 +44,22 @@ public class GameBoard {
         reset();
     }
 
+    /** [기믹] 이 보드의 기믹 관리자. */
+    public Gimmick getGimmick() {
+        return gimmick;
+    }
+
+    /** [기믹] 현재 레벨. 10줄을 지울 때마다 1씩 오른다. */
+    public int getLevel() {
+        return linesRemoved / 10 + 1;
+    }
+
     /** 보드를 비우고 상태를 초기화한다. (첫 블록은 spawn()으로 따로 만든다) */
     public void reset() {
         for (int i = 0; i < HEIGHT; ++i){
             Arrays.fill(cells[i],Tetrominoes.NoShape);
             Arrays.fill(colorIds[i],0);
+            Arrays.fill(age[i],0);              // [기믹]
         }
         curPiece.setShape(Tetrominoes.NoShape);
         holdShape = Tetrominoes.NoShape;
@@ -56,6 +69,7 @@ public class GameBoard {
         spawnPending = false;
         flashRows.clear();
         queue.clear();
+        gimmick.clear();                        // [기믹]
         rollNext();
     }
 
@@ -165,21 +179,34 @@ public class GameBoard {
         }
     }
 
-    public boolean moveLeft() {
-        return tryMove(curPiece, curX - 1, curY);
+    // [기믹] 이동·회전은 입력을 Gimmick 을 거쳐(키 반전) 실제 동작으로 바꿔 실행한다.
+    public boolean moveLeft()    { return handle(Gimmick.Input.LEFT); }
+
+    public boolean moveRight()   { return handle(Gimmick.Input.RIGHT); }
+
+    public boolean rotateLeft()  { return handle(Gimmick.Input.ROTATE_LEFT); }
+
+    public boolean rotateRight() { return handle(Gimmick.Input.ROTATE_RIGHT); }
+
+    /** [기믹] 눌린 입력을 remap() 으로 바꾼 뒤 실행한다. 회전 불가도 여기서 막는다. */
+    /** 눌린 입력을 remap() 으로 바꾼 뒤 실행한다. 회전 불가도 여기서 막는다. */
+    private boolean handle(Gimmick.Input pressed) {
+        switch (gimmick.remap(pressed)) {
+            case LEFT:
+                return tryMove(curPiece, curX - 1, curY);
+            case RIGHT:
+                return tryMove(curPiece, curX + 1, curY);
+            case ROTATE_LEFT:
+                if (gimmick.blocksRotation()) return false;
+                return tryRotate(curPiece.rotateLeft());
+            case ROTATE_RIGHT:
+                if (gimmick.blocksRotation()) return false;
+                return tryRotate(curPiece.rotateRight());
+            default:
+                return false;
+        }
     }
 
-    public boolean moveRight() {
-        return tryMove(curPiece, curX + 1, curY);
-    }
-
-    public boolean rotateLeft() {
-        return tryRotate(curPiece.rotateLeft());
-    }
-
-    public boolean rotateRight() {
-        return tryRotate(curPiece.rotateRight());
-    }
 
     private boolean tryRotate(Shape rotated) {
         int[] kicks = { 0, -1, 1, -2, 2 };
@@ -311,6 +338,7 @@ public class GameBoard {
             int y = curY - curPiece.y(i);
             cells[y][x] = curPiece.getShape();
             colorIds[y][x] = curColor;
+            age[y][x] = 0;                      // [기믹] 새로 놓인 칸은 나이 0
         }
         // 꽉 찬 줄은 바로 지우지 않고 기록만 해 둔다. (Board가 깜빡인 뒤 finishClear()를 호출)
         for (int i = 0; i < HEIGHT; ++i) {
@@ -348,19 +376,23 @@ public class GameBoard {
         for(int y = row;y<HEIGHT-1;y++){
             cells[y]=cells[y+1];
             colorIds[y]=colorIds[y+1];          // 색도 블록을 따라 내려와야 한다
+            age[y]=age[y+1];                    // [기믹] 나이도 같이
         }
         cells[HEIGHT-1]=new Tetrominoes[WIDTH];
         Arrays.fill(cells[HEIGHT-1],Tetrominoes.NoShape);
         colorIds[HEIGHT-1]=new int[WIDTH];
+        age[HEIGHT-1]=new int[WIDTH];           // [기믹]
     }
 
     public void upLine(int row) {
         for(int y = HEIGHT-1;y>row;y--){
             cells[y]=cells[y-1];
             colorIds[y]=colorIds[y-1];          // 색도 블록을 따라 올라가야 한다
+            age[y]=age[y-1];                    // [기믹] 나이도 같이
         }
         cells[row]=new Tetrominoes[WIDTH];
         Arrays.fill(cells[row],Tetrominoes.NoShape);
         colorIds[row]=new int[WIDTH];
+        age[row]=new int[WIDTH];                // [기믹]
     }
 }
