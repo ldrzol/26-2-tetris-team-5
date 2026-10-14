@@ -27,6 +27,7 @@ class MenuScreen extends DesignPanel {
 	private static final int ITEM_X = 932;
 	private static final int ITEM_TOP = 727;
 	private static final int ITEM_GAP = 111;   // 첫째 항목 -> 둘째 항목
+	private static final int ITEM_ROW_H = 90;  // 마우스로 누를 수 있는 한 줄 높이
 	private static final float ITEM_SIZE = 64f;
 
 	private static final Rectangle ARROW = new Rectangle(837, 735, 29, 54);
@@ -52,6 +53,16 @@ class MenuScreen extends DesignPanel {
 		this.titleTop = titleTop;
 		this.items = items;
 		this.onSelect = onSelect;
+
+		// 마우스로도 고를 수 있다. 항목 줄을 누르면 그대로 선택된다.
+		for (int i = 0; i < items.length; i++) {
+			final int index = i;
+			onClick(new Rectangle(BOX_INNER.x, ITEM_TOP + i * ITEM_GAP - 10, BOX_INNER.width, ITEM_ROW_H),
+					() -> {
+						selected = index;
+						choose();
+					});
+		}
 
 		Ui.bind(this, KeyEvent.VK_UP, "menuUp", () -> move(-1));
 		Ui.bind(this, KeyEvent.VK_DOWN, "menuDown", () -> move(+1));

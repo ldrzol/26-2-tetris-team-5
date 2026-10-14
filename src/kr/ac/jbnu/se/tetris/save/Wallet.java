@@ -1,10 +1,11 @@
 package kr.ac.jbnu.se.tetris.save;
 
+import kr.ac.jbnu.se.tetris.item.Attack;
 import kr.ac.jbnu.se.tetris.item.Box;
-import kr.ac.jbnu.se.tetris.item.Item;
 import kr.ac.jbnu.se.tetris.item.Skin;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 import java.util.prefs.Preferences;
 
@@ -51,7 +52,7 @@ public final class Wallet {
 		return owned.contains(s);
 	}
 
-	public static int count(Item item) {
+	public static int count(Attack item) {
 		return bag[item.ordinal()];
 	}
 
@@ -77,27 +78,30 @@ public final class Wallet {
 	}
 
 	/**
-	 * 상자를 사서 바로 연다. 나온 아이템을 가방에 넣고 돌려준다. 코인이 모자라면 null.
+	 * 상자를 사서 바로 연다. 나온 아이템을 가방에 넣고 돌려준다. 코인이 모자라면 빈 목록.
 	 *
 	 * 안 연 상자를 들고 다니는 상태는 두지 않는다. 상자를 모았다가 여는 연출이 필요하면
 	 * 상자 개수도 가방에 넣고 ShopScreen 에 '열기' 줄을 늘려야 한다.
 	 */
-	public static Item buy(Box box) {
+	public static List<Attack> buy(Box box) {
 		if (coins < box.price)
-			return null;
+			return java.util.Collections.emptyList();
 		coins -= box.price;
-		return add(box.open());
+		List<Attack> got = box.open();
+		for (Attack item : got)
+			add(item);
+		return got;
 	}
 
 	/** 피버 타임 보상처럼 공짜로 받는 경우. */
-	static Item add(Item item) {
+	static Attack add(Attack item) {
 		bag[item.ordinal()]++;
 		save();
 		return item;
 	}
 
 	/** 아이템 하나를 쓴다. 없으면 false. */
-	public static boolean use(Item item) {
+	public static boolean use(Attack item) {
 		if (bag[item.ordinal()] <= 0)
 			return false;
 		bag[item.ordinal()]--;
@@ -192,7 +196,7 @@ public final class Wallet {
 		StringBuilder counts = new StringBuilder();
 		for (int i = 0; i < bag.length; i++)
 			counts.append(i == 0 ? "" : ",").append(bag[i]);
-		PREFS.put("bag", counts.toString());
+		PREFS.put("items", counts.toString());
 	}
 
 	private static Set<Skin> loadOwned() {
@@ -207,8 +211,8 @@ public final class Wallet {
 	}
 
 	private static int[] loadBag() {
-		int[] out = new int[Item.values().length];
-		String[] parts = PREFS.get("bag", "").split(",");
+		int[] out = new int[Attack.values().length];      // 아이템 종류는 대전 아이템과 같다
+		String[] parts = PREFS.get("items", "").split(",");
 		for (int i = 0; i < out.length && i < parts.length; i++)
 			out[i] = number(parts[i]);
 		return out;
@@ -236,10 +240,14 @@ public final class Wallet {
 				: "클리어 전에는 보너스가 붙으면 안 된다";
 		assert reward(CLEAR_SCORE) == CLEAR_SCORE / SCORE_PER_COIN + CLEAR_BONUS : "클리어 보너스가 빠졌다";
 
-		int[] seen = new int[Item.values().length];
+		int[] seen = new int[Attack.values().length];
 		for (int i = 0; i < 3000; i++)
-			for (Box box : Box.values())
-				seen[box.open().ordinal()]++;
+			for (Box box : Box.values()) {
+				List<Attack> got = box.open();
+				assert got.size() == box.picks : box.label + " 에서 나온 개수가 다르다: " + got.size();
+				for (Attack a : got)
+					seen[a.ordinal()]++;
+			}
 		for (int n : seen)
 			assert n > 0 : "어느 상자에서도 안 나오는 아이템이 있다";
 

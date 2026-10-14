@@ -1,6 +1,9 @@
 package kr.ac.jbnu.se.tetris.ui;
 
 import java.awt.CardLayout;
+import java.awt.Dimension;
+import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
 
 import javax.swing.JFrame;
 import javax.swing.JLayeredPane;
@@ -22,6 +25,7 @@ public class MainFrame extends JFrame {
 	static final String SETTINGS = "settings"; // Figma 환경 설정 화면
 	static final String RANKING = "ranking";   // Figma 랭킹 화면
 	static final String SHOP = "shop";         // 상점 화면
+	static final String HIDDEN = "hidden";     // 숨은 레벨 (다방향 테트리스)
 
 	private final CardLayout cards = new CardLayout();
 	private final JPanel root = new JPanel(cards);
@@ -40,8 +44,16 @@ public class MainFrame extends JFrame {
 
 		setTitle("TETRIS");
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
-		setSize(DesignPanel.DESIGN_W, DesignPanel.DESIGN_H);
+		setSize(windowSize());
 		setLocationRelativeTo(null);
+	}
+
+	/** 디자인(2000x1422)을 모니터 작업 영역의 80% 안에 맞춰 줄인 창 크기. */
+	private static Dimension windowSize() {
+		Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+		double scale = Math.min(screen.width / (double) DesignPanel.DESIGN_W,
+				screen.height / (double) DesignPanel.DESIGN_H) * 0.8;
+		return new Dimension((int) (DesignPanel.DESIGN_W * scale), (int) (DesignPanel.DESIGN_H * scale));
 	}
 
 	/** 화면을 새로 만들어서 띄운다. 매번 새로 만들므로 다시 들어가면 늘 처음 상태다. */
@@ -86,6 +98,8 @@ public class MainFrame extends JFrame {
 				return new ShopScreen(() -> showScreen(MENU));
 			case SINGLE:
 				return new SinglePanel(this);
+			case HIDDEN:
+				return new HiddenPanel(this);
 			case PRACTICE:
 				return new VersusPanel(this, PRACTICE, true);   // 오른쪽 보드를 AI 가 조종한다
 			default:

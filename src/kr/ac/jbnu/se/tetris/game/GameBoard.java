@@ -186,10 +186,16 @@ public class GameBoard {
 
         gimmick.onSpawn();                          // [기믹] 블록마다 다시 뽑는 기믹에 알린다
 
-        // 덩어리가 커서 가운데에 안 들어가면 옆으로 밀어 본다. 한 칸짜리 블록은 0에서 끝난다.
-        for (int dx : SPAWN_KICKS) {
-            if (tryMove(curPiece, curX + dx, curY))
+        // 덩어리가 커서 벽을 넘을 때만 옆으로 밀어 본다.
+        // 판 안에는 들어가는데 쌓인 블록에 막힌 거라면 그대로 게임 오버여야 한다.
+        if (fitsInWalls(curPiece, curX, curY)) {
+            if (tryMove(curPiece, curX, curY))
                 return true;
+        } else {
+            for (int dx : SPAWN_KICKS) {
+                if (tryMove(curPiece, curX + dx, curY))
+                    return true;
+            }
         }
 
         curPiece.setShape(Tetrominoes.NoShape);
@@ -469,14 +475,23 @@ public class GameBoard {
 
     // ---- 내부 로직 ----
 
-    /** (newX, newY)로 옮길 수 있는지 검사하고, 가능하면 실제로 이동한다. repaint는 하지 않는다. */
-    private boolean tryMove(Shape newPiece, int newX, int newY) {
-        for (int i = 0; i < newPiece.size(); ++i) {
-            int x = newX + newPiece.x(i);
-            int y = newY - newPiece.y(i);
+    /** 블록이 (x0, y0) 에서 판 안에 들어오는지. 쌓인 블록은 보지 않는다. */
+    private boolean fitsInWalls(Shape piece, int x0, int y0) {
+        for (int i = 0; i < piece.size(); ++i) {
+            int x = x0 + piece.x(i);
+            int y = y0 - piece.y(i);
             if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT)
                 return false;
-            if (shapeAt(x, y) != Tetrominoes.NoShape)
+        }
+        return true;
+    }
+
+    /** (newX, newY)로 옮길 수 있는지 검사하고, 가능하면 실제로 이동한다. repaint는 하지 않는다. */
+    private boolean tryMove(Shape newPiece, int newX, int newY) {
+        if (!fitsInWalls(newPiece, newX, newY))
+            return false;
+        for (int i = 0; i < newPiece.size(); ++i) {
+            if (shapeAt(newX + newPiece.x(i), newY - newPiece.y(i)) != Tetrominoes.NoShape)
                 return false;
         }
 
@@ -557,6 +572,19 @@ public class GameBoard {
         cells[y][x] = Tetrominoes.NoShape;
         colorIds[y][x] = 0;
         age[y][x] = 0;
+    }
+
+    /**
+     * [아이템] 폭탄. 쌓인 칸 하나를 골라 무작위 모양(한 칸/십자/정사각/일자)으로 터뜨린다.
+     * 터뜨릴 블록이 하나도 없으면 false.
+     */
+    public boolean explode() {
+        int[] c = randomStackedCell();
+        if (c == null)
+            return false;
+        for (int[] o : Gimmick.randomBlastOffsets())
+            eraseCell(c[0] + o[0], c[1] + o[1]);
+        return true;
     }
 
     /** 블록이 쌓인 칸 중 하나를 무작위로 고른다. {x, y} 를 돌려주고, 하나도 없으면 null. */

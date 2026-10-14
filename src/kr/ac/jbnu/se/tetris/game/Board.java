@@ -1,13 +1,14 @@
 package kr.ac.jbnu.se.tetris.game;
 
-import kr.ac.jbnu.se.tetris.item.Item;
+import kr.ac.jbnu.se.tetris.item.Attack;
 import kr.ac.jbnu.se.tetris.item.Skin;
+import kr.ac.jbnu.se.tetris.save.Settings;
 import kr.ac.jbnu.se.tetris.save.Wallet;
 
 import kr.ac.jbnu.se.tetris.Resources;
 import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Dimension;
+
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -37,11 +38,6 @@ public class Board extends JPanel implements ActionListener {
 	private static final int MIN_DELAY = 100;
 	private static final int DELAY_STEP_PER_LEVEL = 30;
 
-	// [아이템] 감속 아이템이 켜져 있는 동안은 낙하 간격을 두 배로 늘린다
-	private static final int SLOW_MS = 10000;
-	private boolean slow = false;
-	private final Timer slowTimer = new Timer(SLOW_MS, e -> endSlow());
-
 	// [기믹] 1초마다 기믹(블록 사라짐 등)을 갱신하는 타이머
 	private final Timer gimmickTimer = new Timer(1000, e -> onGimmickSecond());
 
@@ -62,6 +58,9 @@ public class Board extends JPanel implements ActionListener {
 	/** 보드가 다시 그려질 때 같이 갱신할 곳. (Hold/Next 를 그리는 바깥 패널) */
 	private Runnable onRepaint = null;
 
+	// [다방향] 그릴 때 돌리는 횟수(90도 단위). 0 이면 보통 테트리스와 같다
+	private int turns = 0;
+
 	private static final int LOCK_DELAY = 500;
 	private static final int MAX_LOCK_RESETS = 15;
 	private final Timer lockTimer = new Timer(LOCK_DELAY, e -> onLockTimeout());
@@ -71,7 +70,6 @@ public class Board extends JPanel implements ActionListener {
 		this.statusbar = statusbar;
 		timer = new Timer(BASE_DELAY, this);   // 틱 간격은 afterAction()에서 레벨에 맞춰 조정
 		lockTimer.setRepeats(false);
-		slowTimer.setRepeats(false);
 		flash = new LineClearEffect(game, () -> isPaused, this::repaint, this::afterAction);   // [flash]
 	}
 
@@ -98,8 +96,6 @@ public class Board extends JPanel implements ActionListener {
 		flash.stop();                // [flash]
 		clearLockState();
 		lastLines = 0; lastLevel = 1; lastOver = false;   // [소리]
-		slow = false;                // [아이템] 감속은 판마다 초기화
-		slowTimer.stop();
 		game.reset();                // reset() 안에서 기믹도 초기화된다
 		game.spawn();
 		timer.start();
@@ -252,24 +248,20 @@ public class Board extends JPanel implements ActionListener {
 		afterAction();
 	}
 
-	/** 감속이 끝나면 원래 속도로 돌려놓는다. */
-	private void endSlow() {
-		slow = false;
-		applyGimmickState();
-	}
-
-	/** 가방에 있으면 아이템을 하나 써서 효과를 낸다. */
-	public boolean useItem(Item item) {
+	/** 가방에 있으면 아이템을 하나 써서 효과를 낸다. 1인 모드에서는 내 보드에 건다. */
+	public boolean useItem(Attack item) {
 		if (!isRunning() || game.isGameOver() || !Wallet.use(item))
 			return false;
 
 		switch (item) {
 			case BOMB:
-				game.downLine(0);           // 맨 아래 줄을 통째로 치운다
+				game.explode();             // 쌓인 칸 하나를 무작위 모양으로 터뜨린다
 				break;
-			case SLOW:
-				slow = true;
-				slowTimer.restart();
+			case SWAP:
+				game.replaceCurrentPiece(game.nextType());   // 걸 기믹이 없어 그 자리에서 바꾼다
+				break;
+			default:
+				game.getGimmick().apply(item);
 				break;
 		}
 		Sfx.play(Sfx.Sound.ITEM);
@@ -284,8 +276,6 @@ public class Board extends JPanel implements ActionListener {
 
 		int delay = Math.max(MIN_DELAY, BASE_DELAY - (game.getLevel() - 1) * DELAY_STEP_PER_LEVEL);
 		delay = Math.max(MIN_DELAY / 2, (int) (delay * gm.speedFactor()));
-		if (slow)
-			delay *= 2;              // [아이템] 감속 중에는 두 배로 느리게
 		if (timer.getDelay() != delay) {
 			timer.setDelay(delay);
 		}
@@ -293,26 +283,40 @@ public class Board extends JPanel implements ActionListener {
 
 	private void drawGrid(Graphics g, int boardTop) {
 		int w = GameBoard.WIDTH * squareWidth();
-		int h = GameBoard.HEIGHT * squareHeight();
+		int h = GameBoard.VISIBLE_HEIGHT * squareHeight();
 
-		g.setColor(new Color(0, 0, 0, 28));   // 연한 반투명 검정
+		g.setColor(new Color(0xF1, 0xE7, 0xD3, 40));   // 어두운 판 위에 보이도록 연한 크림색
 		for (int j = 0; j <= GameBoard.WIDTH; j++) {
 			int x = j * squareWidth();
 			g.drawLine(x, boardTop, x, boardTop + h);
 		}
-		for (int i = 0; i <= GameBoard.HEIGHT; i++) {
+		for (int i = 0; i <= GameBoard.VISIBLE_HEIGHT; i++) {
 			int y = boardTop + i * squareHeight();
 			g.drawLine(0, y, w, y);
 		}
 	}
 
+	/**
+	 * [다방향] 판을 90도씩 돌려 그린다. 규칙은 그대로고 보이는 방향만 바뀐다.
+	 * 0 = 아래로, 1 = 왼쪽으로, 2 = 위로, 3 = 오른쪽으로 떨어져 보인다.
+	 */
+	public void setTurns(int turns) {
+		this.turns = ((turns % 4) + 4) % 4;
+		repaint();
+	}
+
 	// 칸 크기는 패널의 실제 크기에서 계산하므로, 보드가 작아지면 칸도 같이 작아진다
+	// (90도 돌려 그릴 때는 패널의 가로/세로가 뒤바뀐다)
 	int squareWidth() {
-		return (int) getSize().getWidth() / GameBoard.WIDTH;
+		return (int) (sideways() ? getSize().getHeight() : getSize().getWidth()) / GameBoard.WIDTH;
 	}
 
 	int squareHeight() {
-		return (int) getSize().getHeight() / GameBoard.VISIBLE_HEIGHT;
+		return (int) (sideways() ? getSize().getWidth() : getSize().getHeight()) / GameBoard.VISIBLE_HEIGHT;
+	}
+
+	private boolean sideways() {
+		return turns % 2 != 0;
 	}
 
 	/** 화면 그리기. 쌓인 블록 -> 고스트 -> 현재 떨어지는 블록 순서로 그린다. */
@@ -320,17 +324,22 @@ public class Board extends JPanel implements ActionListener {
 	protected void paintComponent(Graphics g0) {
 		super.paintComponent(g0);
 
-		Dimension size = getSize();
-		int boardTop = (int) size.getHeight() - GameBoard.VISIBLE_HEIGHT * squareHeight();
+		int boardW = GameBoard.WIDTH * squareWidth();
+		int boardH = GameBoard.VISIBLE_HEIGHT * squareHeight();
+
+		// 판을 패널 한가운데에 놓는다. [다방향] 이면 거기서 90도씩 돌린다
+		Graphics2D g = (Graphics2D) g0.create();
+		g.translate(getWidth() / 2.0, getHeight() / 2.0);
+		g.rotate(Math.PI / 2 * turns);
+		g.translate(-boardW / 2.0, -boardH / 2.0);
+		int boardTop = 0;
 
 		// [기믹] FLIP: 판 영역의 중심을 기준으로 180도 돌려서 그린다
-		Graphics2D g = (Graphics2D) g0.create();
-		if (game.getGimmick().flipsBoard()) {
-			g.rotate(Math.PI, GameBoard.WIDTH * squareWidth() / 2.0,
-					boardTop + GameBoard.VISIBLE_HEIGHT * squareHeight() / 2.0);
-		}
+		if (game.getGimmick().flipsBoard())
+			g.rotate(Math.PI, boardW / 2.0, boardH / 2.0);
 
-		drawGrid(g, boardTop);
+		if (Settings.grid)                 // [설정] 그리드 표시
+			drawGrid(g, boardTop);
 
 		// 1) 이미 바닥에 쌓인 블록
 		for (int i = 0; i < GameBoard.VISIBLE_HEIGHT; ++i) {
@@ -345,7 +354,7 @@ public class Board extends JPanel implements ActionListener {
 		// [기믹] INVISIBLE 이면 떨어지는 블록과 고스트를 둘 다 그리지 않는다
 		boolean invisible = game.getGimmick().hidesPiece();
 
-		if (!invisible) {
+		if (!invisible && Settings.ghost) {   // [설정] 고스트 표시
 			drawGhost(g, boardTop);
 		}
 
@@ -363,9 +372,9 @@ public class Board extends JPanel implements ActionListener {
 		// [기믹] COVER: 보드 아래쪽을 어두운 막으로 가린다
 		double cover = game.getGimmick().coverRatio();
 		if (cover > 0) {
-			int h = (int) (GameBoard.VISIBLE_HEIGHT * squareHeight() * cover);
+			int h = (int) (boardH * cover);
 			g.setColor(new Color(15, 15, 25));
-			g.fillRect(0, boardTop + GameBoard.VISIBLE_HEIGHT * squareHeight() - h, getWidth(), h);
+			g.fillRect(0, boardTop + boardH - h, boardW, h);
 		}
 		flash.draw(g, boardTop, squareWidth(), squareHeight());   // [flash]
 		g.dispose();

@@ -3,11 +3,14 @@ package kr.ac.jbnu.se.tetris.ui;
 import kr.ac.jbnu.se.tetris.game.Board;
 import kr.ac.jbnu.se.tetris.save.Settings;
 
+import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 
 import javax.swing.InputMap;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 
 /**
@@ -72,5 +75,39 @@ final class GameKeys {
 		}
 		Ui.bind(c, KeyStroke.getKeyStroke(keyCode, 0), id, action);
 		Ui.bind(c, KeyStroke.getKeyStroke(keyCode, InputEvent.SHIFT_DOWN_MASK), id, action);
+	}
+
+	/**
+	 * 자가 점검. java -ea 로 실행한다.
+	 *
+	 * 설정에서 키를 바꿨을 때 (1) 새 키가 연결되고 (2) 예전 키는 지워지고
+	 * (3) 눌렀을 때 실제로 보드가 움직이는지까지 본다.
+	 */
+	public static void main(String[] args) {
+		JPanel panel = new JPanel();
+		Board board = new Board(new JLabel());
+		InputMap im = panel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+
+		Settings.keys = Settings.copy(Settings.DEFAULT_KEYS);
+		bind(panel, 0, board);
+		assert im.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0)) != null : "기본 왼쪽 이동 키가 안 걸렸다";
+
+		int[][] mine = Settings.copy(Settings.DEFAULT_KEYS);
+		mine[Settings.LEFT][0] = KeyEvent.VK_J;          // 왼쪽 이동을 J 로 바꾼다
+		Settings.keys = mine;
+		bind(panel, 0, board);
+
+		assert im.get(KeyStroke.getKeyStroke(KeyEvent.VK_J, 0)) != null : "바꾼 키가 안 걸렸다";
+		assert im.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0)) == null : "예전 키가 그대로 남아 있다";
+
+		board.start();
+		int before = board.getGame().getCurX();
+		panel.getActionMap().get(im.get(KeyStroke.getKeyStroke(KeyEvent.VK_J, 0)))
+				.actionPerformed(new ActionEvent(panel, ActionEvent.ACTION_PERFORMED, ""));
+		assert board.getGame().getCurX() == before - 1
+				: "바꾼 키를 눌러도 블록이 안 움직인다: " + before + " -> " + board.getGame().getCurX();
+
+		System.out.println("ok");
+		System.exit(0);          // Swing 타이머가 돌고 있어서 그냥 두면 안 끝난다
 	}
 }
