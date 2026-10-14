@@ -97,6 +97,12 @@ final class Wallet {
 		save();
 		return true;
 	}
+	/** 코인을 더하거나 뺀다(음수). 2인 대전 참가비 정산에 쓴다. 0 아래로는 내려가지 않는다. */
+	static void addCoins(int amount) {
+		coins = Math.max(0, coins + amount);
+		save();
+	}
+
 
 	// ── 보상 ────────────────────────────────────────────────────────────────
 
