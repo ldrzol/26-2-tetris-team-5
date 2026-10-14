@@ -53,11 +53,11 @@ class SettingsScreen extends DesignPanel {
 	private static final int KEY_LABEL_X = 1121, KEY_HEAD_TOP = 322;
 	private static final int[] KEY_HEAD_X = { 1587, 1769 };
 	private static final int[] KEY_COL_X = { 1555, 1737 };
-	private static final int KEY_TOP = 390, KEY_STEP = 105, KEY_W = 112, KEY_H = 75;
+	private static final int KEY_TOP = 390, KEY_STEP = 95, KEY_W = 112, KEY_H = 75;
 	/** 줄 이름은 키 칸보다 이만큼 아래에서 시작한다 */
 	private static final int KEY_LABEL_DROP = 10;
-	private static final Rectangle PAUSE_KEY = new Rectangle(1647, 1020, KEY_W, KEY_H);
-	private static final int HINT_X = 1072, HINT_TOP = 1135;
+	private static final Rectangle PAUSE_KEY = new Rectangle(1647, 1065, KEY_W, KEY_H);
+	private static final int HINT_X = 1072, HINT_TOP = 1165;
 
 	private static final Rectangle SAVE = new Rectangle(675, 1258, 326, 107);
 	private static final Rectangle SAVE_ARROW = new Rectangle(728, 1284, 29, 54);
