@@ -110,6 +110,7 @@ class VersusPanel extends DesignPanel {
 
 	private Board newBoard() {
 		Board b = new Board(new JLabel());   // Board 가 상태바를 요구한다. 화면엔 안 붙인다.
+		b.getGame().setLevelProgression(false);
 		b.setBackground(Ui.BG);
 		b.onRepaint(this::repaint);          // Hold/Next 는 패널이 그리므로 같이 갱신해야 한다
 		return b;

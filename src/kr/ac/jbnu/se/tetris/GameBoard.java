@@ -33,7 +33,8 @@ public class GameBoard {
     private int curX = 0;                   // 현재 블록 기준점 x
     private int curY = 0;                   // 현재 블록 기준점 y
     private int linesRemoved = 0;           // 지운 줄 수
-    private boolean gameOver = false;       // 게임 오버 여부
+    private boolean gameOver = false;// 게임 오버 여부
+    private boolean levelProgression = true;   // false 면 레벨이 1로 고정된다
     private boolean spawnPending = false;   // 줄이 지워져서 새 블록을 다음 틱에 만들어야 하는 상태
     private final List<Integer> flashRows = new ArrayList<>(); // 깜빡이는 중인(곧 지워질) 줄들
     private final Random rand = new Random();
@@ -56,11 +57,15 @@ public class GameBoard {
         return gimmick;
     }
 
-    /** [기믹] 현재 레벨. 10줄을 지울 때마다 1씩 오른다. */
+    /** [기믹] 현재 레벨. 10줄을 지울 때마다 1씩 오른다. 레벨 올리기를 껐으면 늘 1이다. */
     public int getLevel() {
-        return linesRemoved / 10 + 1;
+        return levelProgression ? linesRemoved / 10 + 1 : 1;
     }
 
+    /** 2인 대전처럼 레벨이 오르면 안 되는 판에서는 false 로 끈다. */
+    public void setLevelProgression(boolean on) {
+        levelProgression = on;
+    }
     /** 보드를 비우고 상태를 초기화한다. (첫 블록은 spawn()으로 따로 만든다) */
     public void reset() {
         for (int i = 0; i < HEIGHT; ++i){

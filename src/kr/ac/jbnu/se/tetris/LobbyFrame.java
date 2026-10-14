@@ -26,6 +26,7 @@ class LobbyFrame extends MenuScreen {
 	private String mode;
 	private int fee;
 
+
 	LobbyFrame(MainFrame frame) {
 		super(new String[] { "멀티 모드", "- 2인 -" }, new float[] { 128f, 96f }, 252,
 				new String[] { "방 만들기", "방 참가" }, null);
@@ -75,6 +76,7 @@ class LobbyFrame extends MenuScreen {
 			return;
 		}
 
+
 		busy = true;
 		try {
 			status = "내 IP: " + InetAddress.getLocalHost().getHostAddress()
@@ -123,6 +125,8 @@ class LobbyFrame extends MenuScreen {
 		}
 		repaint();
 	}
+
+
 
 	private void onFailed(String text) {
 		busy = false;
