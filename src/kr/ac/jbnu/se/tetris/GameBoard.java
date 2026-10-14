@@ -173,8 +173,23 @@ public class GameBoard {
         return System.currentTimeMillis() - spawnedAtMs;
     }
 
-    /** 새 블록 생성. 예고된 next 를 꺼내 쓰고 다음 것을 새로 뽑는다. */
+    /** 블록 덩어리가 가운데에 안 들어갈 때 옆으로 밀어 보는 칸 수. */
+    private static final int[] SPAWN_KICKS = { 0, -1, 1, -2, 2, -3, 3 };
+
+    /** 블록 두 개를 한 덩어리로 만들 때 둘 사이를 띄우는 칸 수. */
+    private static final int TWIN_GAP = 3;
+
+    /**
+     * 새 블록 생성. 예고된 next 를 꺼내 쓰고 다음 것을 새로 뽑는다.
+     *
+     * 블록을 막는 아이템이 걸려 있으면 조작할 블록이 없는 상태로 둔다. 효과가
+     * 풀리면 tick() 이 다시 불러 준다.
+     */
     public boolean spawn() {
+        if (gimmick.blocksSpawn()) {
+            curPiece.setShape(Tetrominoes.NoShape);
+            return false;
+        }
         Tetrominoes shape = nextShape;
         int color = nextColor;
         rollNext();
@@ -187,15 +202,61 @@ public class GameBoard {
         spawnedAtMs = System.currentTimeMillis();   // [기믹] INVISIBLE 이 첫 1초간 보여 주기 위한 기준 시각
         curPiece.setShape(shape);
         curColor = color;
+
+        if (gimmick.doublesPiece())                 // [아이템] 블록 두 개가 한 덩어리로 떨어진다
+            curPiece = curPiece.joinedWith(nextPieceShape(), TWIN_GAP);
+
         curX = WIDTH / 2 + 1;
         curY = HEIGHT - 1 + curPiece.minY();
 
-        if (!tryMove(curPiece, curX, curY)) {
-            curPiece.setShape(Tetrominoes.NoShape);
-            gameOver = true;
-            return false;
+        gimmick.onSpawn();                          // [기믹] 블록마다 다시 뽑는 기믹에 알린다
+
+        // 덩어리가 커서 가운데에 안 들어가면 옆으로 밀어 본다. 한 칸짜리 블록은 0에서 끝난다.
+        for (int dx : SPAWN_KICKS) {
+            if (tryMove(curPiece, curX + dx, curY))
+                return true;
         }
-        return true;
+
+        curPiece.setShape(Tetrominoes.NoShape);
+        gameOver = true;
+        return false;
+    }
+
+    /** 덩어리에 같이 붙일 블록을 큐에서 하나 더 꺼낸다. (2개 동시이므로 큐도 두 개를 쓴다) */
+    private Shape nextPieceShape() {
+        Shape other = new Shape();
+        other.setShape(nextFromQueue());
+        return other;
+    }
+
+    /**
+     * [아이템] 조작 중인 블록을 다른 모양으로 바꾼다. (블록 교환)
+     *
+     * 그 자리에 안 들어가면 좌우로 밀어 보고, 그래도 안 되면 바꾸지 않는다.
+     */
+    public boolean replaceCurrentPiece(Tetrominoes shape) {
+        if (gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape)
+            return false;
+        if (shape == Tetrominoes.NoShape || shape == Tetrominoes.GarbageShape)
+            return false;
+
+        Shape replacement = new Shape();
+        replacement.setShape(shape);
+        for (int dx : SPAWN_KICKS) {
+            if (tryMove(replacement, curX + dx, curY))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * [기믹] 기믹이 블록을 저절로 돌릴 때. 플레이어 입력이 아니므로 키 반전과
+     * 회전 금지의 영향을 받지 않는다.
+     */
+    void forceRotate() {
+        if (gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape)
+            return;
+        tryRotate(curPiece.rotateRight());
     }
 
     /** 다음 블록을 7bag 큐에서 꺼낸다. 색은 따로 무작위로 고른다. */
@@ -210,6 +271,8 @@ public class GameBoard {
      */
     public boolean hold() {
         if (holdLocked || gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape)
+            return false;
+        if (gimmick.blocksSpawn())   // [아이템] 막혀 있는 동안은 홀드로도 새 블록을 꺼낼 수 없다
             return false;
 
         Tetrominoes keptShape = curPiece.getShape();
@@ -235,6 +298,8 @@ public class GameBoard {
         if (spawnPending) {
             spawnPending = false;
             spawn();
+        } else if (curPiece.getShape() == Tetrominoes.NoShape) {
+            spawn();           // [아이템] 블록을 막는 효과가 풀리면 여기서 다시 나온다
         } else {
             moveDown();
         }
@@ -287,7 +352,7 @@ public class GameBoard {
         int cells = 0;
         while (moveDown())
             cells++;
-        score += cells * 2;                     // 하드 드롭: 떨어뜨린 칸마다 2점
+        gain(cells * 2);                        // 하드 드롭: 떨어뜨린 칸마다 2점
         lockPiece();
     }
 
@@ -326,6 +391,11 @@ public class GameBoard {
         return curY;
     }
 
+    /** 지금 떨어지는 블록이 몇 칸짜리인지. 보통 4, 2개 동시 아이템이 걸리면 8. */
+    public int pieceCount() {
+        return curPiece.size();
+    }
+
     /** 현재 블록 i번째 사각형의 보드상 x 좌표 */
     public int pieceX(int i) {
         return curX + curPiece.x(i);
@@ -359,7 +429,12 @@ public class GameBoard {
 
     /** 소프트 드롭처럼 바깥에서 점수를 더할 때 쓴다. */
     void addScore(int points) {
-        score += points;
+        gain(points);
+    }
+
+    /** [아이템] 점수 배수를 적용해서 더한다. 점수가 붙는 곳은 전부 여기를 거친다. */
+    private void gain(int points) {
+        score += (int) Math.round(points * gimmick.scoreFactor());
     }
 
     public int getLinesRemoved() {
@@ -384,7 +459,7 @@ public class GameBoard {
 
     /** (newX, newY)로 옮길 수 있는지 검사하고, 가능하면 실제로 이동한다. repaint는 하지 않는다. */
     private boolean tryMove(Shape newPiece, int newX, int newY) {
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < newPiece.size(); ++i) {
             int x = newX + newPiece.x(i);
             int y = newY - newPiece.y(i);
             if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT)
@@ -404,7 +479,7 @@ public class GameBoard {
         if (gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape) {
             return;
         }
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < curPiece.size(); ++i) {
             int x = curX + curPiece.x(i);
             int y = curY - curPiece.y(i);
             cells[y][x] = curPiece.getShape();
@@ -442,7 +517,7 @@ public class GameBoard {
         gained += COMBO_POINTS * combo * level;                    // 콤보 (첫 삭제는 combo=0 이라 0점)
         if (isBoardEmpty())
             gained += PERFECT_POINTS[n] * level;                   // 퍼펙트 클리어
-        score += gained;
+        gain(gained);
     }
 
     private boolean isBoardEmpty() {

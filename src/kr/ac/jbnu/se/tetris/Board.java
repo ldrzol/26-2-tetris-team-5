@@ -360,7 +360,7 @@ public class Board extends JPanel implements ActionListener {
 
 		// 2) 현재 떨어지는 블록
 		if (!invisible && game.currentType() != Tetrominoes.NoShape) {
-			for (int i = 0; i < 4; ++i) {
+			for (int i = 0; i < game.pieceCount(); ++i) {
 				int x = game.pieceX(i);
 				int y = game.pieceY(i);
 				// 숨김 영역(y >= VISIBLE_HEIGHT)의 칸은 위로 벗어나 저절로 잘린다
@@ -452,7 +452,7 @@ public class Board extends JPanel implements ActionListener {
 		piece.setShape(shape);
 
 		int minX = piece.x(0), maxX = piece.x(0), minY = piece.y(0), maxY = piece.y(0);
-		for (int i = 1; i < 4; i++) {
+		for (int i = 1; i < piece.size(); i++) {
 			minX = Math.min(minX, piece.x(i));
 			maxX = Math.max(maxX, piece.x(i));
 			minY = Math.min(minY, piece.y(i));
@@ -466,7 +466,7 @@ public class Board extends JPanel implements ActionListener {
 
 		BufferedImage tile = tiles()[colorId];
 		int border = Math.max(1, (int) Math.round(cell * BORDER_RATIO));
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < piece.size(); i++) {
 			// 보드와 같은 규칙: y 가 클수록 아래쪽이다
 			int x = originX + (piece.x(i) - minX) * cell;
 			int y = originY + (piece.y(i) - minY) * cell;
@@ -485,7 +485,7 @@ public class Board extends JPanel implements ActionListener {
 		}
 		Graphics2D g2 = (Graphics2D) g.create();
 		g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < game.pieceCount(); i++) {
 			int y = game.pieceY(i) - drop;
 			drawSquare(g2, game.pieceX(i) * squareWidth(),
 					boardTop + (GameBoard.VISIBLE_HEIGHT - y - 1) * squareHeight(),
@@ -495,7 +495,7 @@ public class Board extends JPanel implements ActionListener {
 	}
 
 	private boolean canDrop(int d) {
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < game.pieceCount(); i++) {
 			int y = game.pieceY(i) - d;
 			if (y < 0 || game.shapeAt(game.pieceX(i), y) != Tetrominoes.NoShape) {
 				return false;

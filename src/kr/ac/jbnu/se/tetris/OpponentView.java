@@ -42,7 +42,8 @@ public class OpponentView extends JPanel {
         }
 
         if (state.currentType != Tetrominoes.NoShape) {
-            for (int i = 0; i < 4; i++) {
+            // 칸 수는 보내 준 만큼이다. 2개 동시 아이템이 걸리면 여덟 칸이 온다.
+            for (int i = 0; i < state.pieceX.length; i++) {
                 drawSquare(g, state.pieceX[i] * cellW,
                         boardTop + (GameBoard.HEIGHT - state.pieceY[i] - 1) * cellH,
                         cellW, cellH, state.currentType);
