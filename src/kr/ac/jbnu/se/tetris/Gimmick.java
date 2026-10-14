@@ -11,18 +11,26 @@ public class Gimmick {
     /** 플레이어가 누른 방향키가 어떤 동작인지 나타낸다. */
     public enum Input { LEFT, RIGHT, ROTATE_LEFT, ROTATE_RIGHT }
 
-    // 레벨 2부터 이 순서대로 하나씩 돌아가며 적용된다. 새 기믹은 여기에 한 줄만 추가한다.
+    private static final int MAX_ACTIVE = 3;   // 동시에 켜져 있을 수 있는 기믹 수. 넘으면 가장 오래된 것이 꺼진다.
+
+    // 전체 기믹 목록. 새 기믹은 여기에 한 줄만 추가한다.
     private final List<GimmickEffect> pool = Arrays.asList(
             new SpeedUp(),
             new FadeBlocks(),
             new NoRotate(),
             new ReverseKeys(),
             new InvisiblePiece(),
-            new PlusLine()
+            new PlusLine(),
+            new CoverScreen(),
+            new EraseDot(),
+            new EraseCross(),
+            new EraseSquare(),
+            new EraseLine()
     );
 
-
-    private final List<GimmickEffect> active = new ArrayList<>();
+    private final List<GimmickEffect> available = new ArrayList<>(pool);   // 아직 안 켜진 기믹
+    private final List<GimmickEffect> active = new ArrayList<>();          // 지금 켜져 있는 기믹 (오래된 순)
+    private final Random rand = new Random();
     private final GameBoard game;
     private int appliedLevel = 1;
 
@@ -30,21 +38,35 @@ public class Gimmick {
         this.game = game;
     }
 
-    /** 레벨이 바뀐 경우에만 기믹을 새로 정한다. (Board.afterAction 에서 매번 불러도 안전) */
+    /** 레벨이 오른 만큼 기믹을 무작위로 하나씩 추가한다. (Board.afterAction 에서 매번 불러도 안전) */
     public void applyLevel(int level) {
-        if (level == appliedLevel) return;
-        appliedLevel = level;
-        active.clear();
-        if (level >= 2) {
-            GimmickEffect e = pool.get((level - 2) % pool.size());
-            active.add(e);
-            e.onActivate(game);
+        while (appliedLevel < level) {
+            appliedLevel++;
+            addRandom();
         }
+    }
+
+    /** 아직 켜지지 않은 기믹 중 하나를 무작위로 추가한다. */
+    public void addRandom() {
+        if (available.isEmpty()) return;
+        add(available.get(rand.nextInt(available.size())));
+    }
+
+    /** 기믹을 추가한다. 이미 켜져 있으면 무시하고, 가득 차 있으면 가장 오래된 기믹을 끈다. */
+    void add(GimmickEffect effect) {
+        if (active.contains(effect)) return;
+        if (active.size() >= MAX_ACTIVE)
+            available.add(active.remove(0));
+        available.remove(effect);
+        active.add(effect);
+        effect.onActivate(game);
     }
 
     /** 새 게임을 시작할 때 초기화한다. */
     public void clear() {
         active.clear();
+        available.clear();
+        available.addAll(pool);
         appliedLevel = 1;
     }
 
@@ -67,6 +89,13 @@ public class Gimmick {
     public boolean hidesPiece() {
         for (GimmickEffect e : active) if (e.hidesPiece()) return true;
         return false;
+    }
+
+    /** 화면을 덮는 비율(0~1). 켜진 기믹 중 가장 큰 값. */
+    public double coverRatio() {
+        double r = 0;
+        for (GimmickEffect e : active) r = Math.max(r, e.coverRatio());
+        return r;
     }
 
     public double speedFactor() {
@@ -113,6 +142,9 @@ interface GimmickEffect {
 
     /** 낙하 간격에 곱해진다. 1.0보다 작을수록 빨라진다. */
     default double speedFactor() { return 1.0; }
+
+    /** 화면 위를 덮는 비율(0~1). 0이면 안 덮는다. */
+    default double coverRatio() { return 0; }
 }
 
 /** 낙하 간격을 절반으로 줄인다. */
@@ -187,5 +219,78 @@ class PlusLine implements GimmickEffect {
         for (int i = 0; i < GameBoard.WIDTH; i++) {
             game.cells[0][i] = (i == hole) ? Tetrominoes.NoShape : Tetrominoes.GarbageShape;
         }
+        game.liftPieceIfBlocked();   // 올라온 줄과 떨어지는 블록이 겹치면 블록을 위로 올린다
+    }
+}
+
+/** 보드 아래쪽 절반을 5초 중 3초 동안 가린다. */
+class CoverScreen implements GimmickEffect {
+    private int sec = 0;
+
+    @Override public String name() { return "COVER"; }
+    @Override public void onActivate(GameBoard game) { sec = 0; }
+    @Override public void onSecond(GameBoard game) { sec++; }
+    @Override public double coverRatio() { return (sec % 5) < 3 ? 0.5 : 0; }
+}
+
+/** 일정 시간마다 쌓인 블록 하나를 중심으로 모양대로 지우는 기믹의 공통 부분. */
+abstract class EraseShape implements GimmickEffect {
+    private static final int INTERVAL_SEC = 8;
+    private int sec = 0;
+
+    /** 중심 기준 상대 좌표(dx, dy) 목록. 지울 때마다 호출된다. */
+    abstract int[][] offsets();
+
+    @Override public void onActivate(GameBoard game) { sec = 0; }
+
+    @Override
+    public void onSecond(GameBoard game) {
+        if (game.isClearing()) return;          // 줄 삭제 깜빡임 중에는 건드리지 않는다
+        if (++sec < INTERVAL_SEC) return;
+        sec = 0;
+        int[] c = game.randomStackedCell();
+        if (c == null) return;
+        for (int[] o : offsets())
+            game.eraseCell(c[0] + o[0], c[1] + o[1]);
+    }
+}
+
+/** 1x1 : 한 칸만 지운다. */
+class EraseDot extends EraseShape {
+    @Override public String name() { return "ERASE 1x1"; }
+    @Override int[][] offsets() { return new int[][] { { 0, 0 } }; }
+}
+
+/** 십자가 : 중심과 상하좌우 한 칸씩. */
+class EraseCross extends EraseShape {
+    @Override public String name() { return "ERASE CROSS"; }
+    @Override int[][] offsets() {
+        return new int[][] { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+    }
+}
+
+/** 정사각형 : 중심 주변 3x3. */
+class EraseSquare extends EraseShape {
+    @Override public String name() { return "ERASE SQUARE"; }
+    @Override int[][] offsets() {
+        int[][] o = new int[9][];
+        int n = 0;
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+                o[n++] = new int[] { dx, dy };
+        return o;
+    }
+}
+
+/** 일자 : 4칸을 가로 또는 세로로 무작위로 지운다. */
+class EraseLine extends EraseShape {
+    private final Random rand = new Random();
+    @Override public String name() { return "ERASE LINE"; }
+    @Override int[][] offsets() {
+        boolean horizontal = rand.nextBoolean();
+        int[][] o = new int[4][];
+        for (int i = 0; i < 4; i++)
+            o[i] = horizontal ? new int[] { i, 0 } : new int[] { 0, i };
+        return o;
     }
 }
