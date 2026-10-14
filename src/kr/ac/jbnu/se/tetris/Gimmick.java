@@ -120,6 +120,13 @@ public class Gimmick {
         }
         return sb.toString();
     }
+    /** 켜진 기믹 이름 목록 (화면에 한 줄씩 그릴 때 쓴다). */
+    public java.util.List<String> activeNameList() {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (GimmickEffect e : active) names.add(e.name());
+        return names;
+    }
+
 }
 
 // ====================================================================
