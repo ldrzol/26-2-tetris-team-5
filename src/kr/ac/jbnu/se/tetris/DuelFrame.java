@@ -92,7 +92,8 @@ public class DuelFrame extends JFrame {
         }
         setTitle("아이템 대전 - 남은 시간 " + left / 60 + ":" + String.format("%02d", left % 60)
                 + " - 점수 " + myBoard.score() + " : " + opponentScore
-                + " - 아이템 " + itemCount() + "개 (Z)"
+                + " - 방해 " + itemCount() + "개(Z) / 폭탄 " + Wallet.count(Item.BOMB)
+                + "(1) 감속 " + Wallet.count(Item.SLOW) + "(2)"
                 + (System.currentTimeMillis() < feverUntil ? " - 피버! 아이템 +1" : ""));
     }
 
@@ -212,6 +213,8 @@ public class DuelFrame extends JFrame {
         bind(KeyEvent.VK_UP, "rotate", myBoard::rotateRight);
         bind(KeyEvent.VK_DOWN, "softDrop", myBoard::softDrop);
         bind(KeyEvent.VK_SPACE, "hardDrop", myBoard::hardDrop);
+        bind(KeyEvent.VK_1, "shopBomb", () -> myBoard.useItem(Item.BOMB));
+        bind(KeyEvent.VK_2, "shopSlow", () -> myBoard.useItem(Item.SLOW));
         bind(KeyEvent.VK_Z, "useItem", this::useItem);
     }
 
