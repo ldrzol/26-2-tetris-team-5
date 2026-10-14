@@ -35,6 +35,11 @@ final class Wallet {
 		return coins;
 	}
 
+	/** 화면에 적을 코인 수. (1,234 처럼 천 단위로 끊는다) */
+	static String coinText() {
+		return String.format("%,d", coins);
+	}
+
 	static Skin skin() {
 		return skin;
 	}
@@ -99,6 +104,42 @@ final class Wallet {
 	}
 
 	// ── 보상 ────────────────────────────────────────────────────────────────
+
+	/** 레벨 하나를 깰 때마다 주는 코인. */
+	static final int COIN_PER_LEVEL = 100;
+
+	/** 레벨 클리어 보상. 레벨이 높을수록 많이 준다. */
+	static int awardLevel(int level) {
+		int got = COIN_PER_LEVEL * level;
+		coins += got;
+		save();
+		return got;
+	}
+
+	/** 주간 랭킹 보상. 랭킹 화면의 표와 같은 값이다. */
+	static int weeklyReward(int rank) {
+		if (rank == 1)
+			return 1000;
+		if (rank >= 2 && rank <= 3)
+			return 500;
+		if (rank >= 4 && rank <= Ranking.MAX)
+			return 100;
+		return 30;      // 참여
+	}
+
+	/**
+	 * 지난주 보상을 지급한다. 한 주에 한 번만 받을 수 있고, 이미 받았거나
+	 * 기록이 없으면 0 을 돌려준다.
+	 */
+	static int claimWeekly(String week, int rank) {
+		if (rank <= 0 || week.equals(PREFS.get("paidWeek", "")))
+			return 0;
+		int got = weeklyReward(rank);
+		coins += got;
+		PREFS.put("paidWeek", week);
+		save();
+		return got;
+	}
 
 	/** 점수로 받는 코인. (클리어하면 보너스가 붙는다) */
 	static int reward(int score) {
@@ -183,6 +224,11 @@ final class Wallet {
 
 		for (Skin s : Skin.values())
 			assert s.colors.length == GameBoard.COLOR_COUNT : s.label + " 의 색 수가 모자란다";
+
+		assert weeklyReward(1) == 1000 && weeklyReward(2) == 500 && weeklyReward(3) == 500
+				: "1~3위 보상이 표와 다르다";
+		assert weeklyReward(4) == 100 && weeklyReward(Ranking.MAX) == 100 : "4~10위 보상이 표와 다르다";
+		assert weeklyReward(Ranking.MAX + 1) == 30 && weeklyReward(0) == 30 : "참여 보상이 30이 아니다";
 
 		System.out.println("ok");
 	}

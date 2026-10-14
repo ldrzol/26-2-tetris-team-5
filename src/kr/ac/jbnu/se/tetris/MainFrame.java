@@ -90,6 +90,16 @@ public class MainFrame extends JFrame {
 		}));
 	}
 
+	/** 레벨을 깼을 때 덮는 '레벨 클리어' 화면. '다음 레벨' 을 고르면 onNext 가 돈다. */
+	void showLevelClear(int level, int score, int coins, Runnable onNext) {
+		showOverlay(new LevelClearOverlay(level, score, coins,
+				() -> {
+					clearOverlay();
+					onNext.run();
+				},
+				() -> showScreen(MENU)));
+	}
+
 	/** 게임 위에 반투명 GAME OVER 를 덮는다. kind 는 '다시 하기' 로 돌아갈 화면. */
 	void showGameOver(int score, String kind) {
 		showGameOver(score, 0, kind);

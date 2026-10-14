@@ -270,20 +270,6 @@ abstract class DesignPanel extends JPanel {
 				centeredBaseline(g, box.y, box.height));
 	}
 
-	/**
-	 * 켜진 기믹 이름을 상자 안에 한 줄씩 적는다. 하나도 없으면 흐린 글씨로 "없음".
-	 * lineGap 은 줄 사이 간격(디자인 기준)이다.
-	 */
-	void nameList(Graphics2D g, Rectangle box, List<String> names, float size, int lineGap) {
-		int x = box.x + VALUE_PAD, top = box.y + 18;
-		if (names.isEmpty()) {
-			text(g, "없음", x, top, size, DIM_CREAM);
-			return;
-		}
-		for (int i = 0; i < names.size(); i++)
-			text(g, names.get(i), x, top + i * lineGap, size, Color.WHITE);
-	}
-
 	/** 상자 안 가운데에 넣는 흰 숫자. (대전 화면의 Time) */
 	void valueCentered(Graphics2D g, Rectangle box, String value, float size) {
 		g.setColor(Color.WHITE);

@@ -39,11 +39,6 @@ class SinglePanel extends DesignPanel {
 	// 왼쪽 아래: Score/Time 과 같은 높이에 Level, 그 아래에 켜진 기믹 목록
 	private static final Rectangle LEVEL_TAB = new Rectangle(311, 591, 190, 62);
 	private static final Rectangle LEVEL_BOX = new Rectangle(311, 653, 322, 100);
-	private static final Rectangle GIMMICK_TAB = new Rectangle(311, 808, 250, 62);
-	private static final Rectangle GIMMICK_BOX = new Rectangle(311, 870, 322, 200);
-	private static final float GIMMICK_SIZE = 36f;
-	private static final int GIMMICK_GAP = 56;
-
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 
 	/**
@@ -79,8 +74,24 @@ class SinglePanel extends DesignPanel {
 		}
 		onGear(this::pause);
 
+		board.onLevelUp(this::levelClear);
+
 		board.start();
 		clock.start();
+	}
+
+	/**
+	 * 레벨을 깼을 때. 판을 멈추고 덮개를 띄운 뒤, '다음 레벨' 을 고르면
+	 * 쌓인 블록만 비우고 이어서 한다. (점수·레벨은 그대로)
+	 */
+	private void levelClear(int level) {
+		clock.stop();
+		board.setPaused(true);
+		frame.showLevelClear(level, board.score(), Wallet.awardLevel(level), () -> {
+			board.clearStack();
+			notice = "LEVEL " + (level + 1) + " 시작!";
+			resume();
+		});
 	}
 
 	/** 아이템을 쓰고 결과를 안내문에 적는다. */
@@ -137,7 +148,6 @@ class SinglePanel extends DesignPanel {
 		outline(g, SCORE_BOX);
 		outline(g, TIME_BOX);
 		outline(g, LEVEL_BOX);
-		outline(g, GIMMICK_BOX);
 
 		tab(g, HOLD_TAB, "Hold", TAB_SIZE);
 		tab(g, ITEM_TAB, "Item", TAB_SIZE);
@@ -145,7 +155,6 @@ class SinglePanel extends DesignPanel {
 		tab(g, SCORE_TAB, "Score", TAB_SIZE);
 		tab(g, TIME_TAB, "Time", TAB_SIZE);
 		tab(g, LEVEL_TAB, "Level", TAB_SIZE);
-		tab(g, GIMMICK_TAB, "Gimmick", TAB_SIZE);
 
 		GameBoard game = board.getGame();
 		preview(g, HOLD_BOX, game.holdType(), game.getHoldColor());
@@ -155,7 +164,6 @@ class SinglePanel extends DesignPanel {
 		valueRight(g, SCORE_BOX, String.format("%06d", board.score()), VALUE_SIZE, VALUE_PAD);
 		valueRight(g, TIME_BOX, timeText, VALUE_SIZE, VALUE_PAD);
 		valueRight(g, LEVEL_BOX, String.valueOf(game.getLevel()), VALUE_SIZE, VALUE_PAD);
-		nameList(g, GIMMICK_BOX, game.getGimmick().activeNameList(), GIMMICK_SIZE, GIMMICK_GAP);
 
 		items(g);
 		textCentered(g, notice, NOTICE_TOP, NOTICE_SIZE, Ui.CREAM, 0);

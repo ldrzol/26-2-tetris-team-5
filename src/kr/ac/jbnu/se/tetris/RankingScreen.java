@@ -87,16 +87,26 @@ class RankingScreen extends DesignPanel {
 	private static final String NO_NAME = "-", NO_SCORE = "------", NO_TIME = "--:--", NO_RANK = "--";
 
 	private static final String[] STAT_LABELS = { "최고 점수", "걸린 시간", "횟수" };
-	private static final String[] REWARD_LABELS = { "1위", "2~3위", "4~10위", "참여" };
-	private static final String[] REWARD_VALUES = { "1,000", "500", "100", "30" };
+	private static final String[] REWARD_LABELS = { "1위", "2~3위", "4~" + Ranking.MAX + "위", "참여" };
+	private static final String[] REWARD_VALUES = {
+			coins(1), coins(2), coins(4), coins(Ranking.MAX + 1) };
 
-	private final List<Ranking.Entry> entries = Ranking.load();
+	private static String coins(int rank) {
+		return String.format("%,d", Wallet.weeklyReward(rank));
+	}
+
 	private final String me = Ranking.clean(Settings.playerName);
 
 	/** 주간 표인지 전체 표인지. 디자인 기본값은 주간이다. */
 	private boolean weekly = true;
 
+	private List<Ranking.Entry> entries = Ranking.inWeek(Ranking.thisWeek());
+
+	/** 이번에 받은 지난주 보상 안내. 없으면 null. */
+	private String rewardNotice = null;
+
 	RankingScreen(Runnable onStart, Runnable onBack) {
+		claimLastWeek();
 		onClick(BACK, onBack);
 		onClick(START, onStart);
 		onClick(WEEK_BUTTON, () -> setWeekly(true));
@@ -108,7 +118,22 @@ class RankingScreen extends DesignPanel {
 
 	private void setWeekly(boolean on) {
 		weekly = on;
+		entries = on ? Ranking.inWeek(Ranking.thisWeek()) : Ranking.load();
 		repaint();
+	}
+
+	/**
+	 * 지난주 랭킹 보상을 받는다. 지난주에 기록이 있으면 등수에 맞는 코인을 주고,
+	 * 같은 주의 보상은 다시 주지 않는다.
+	 */
+	private void claimLastWeek() {
+		String week = Ranking.lastWeek();
+		int rank = Ranking.rankIn(Ranking.inWeek(week), me);
+		int got = Wallet.claimWeekly(week, rank);
+		if (got <= 0)
+			return;
+		rewardNotice = "지난주 " + rank + "위 보상 +" + String.format("%,d", got) + " 코인";
+		Sfx.play(Sfx.Sound.COIN);
 	}
 
 	// ── 내 기록 ─────────────────────────────────────────────────────────────
@@ -151,7 +176,7 @@ class RankingScreen extends DesignPanel {
 		text(g, "뒤로", BACK_TEXT_X, BACK_TEXT_TOP, ROW_SIZE, Ui.CREAM);
 
 		drawImage(g, COIN_ICON, TOP_COIN);
-		text(g, "4,500", TOP_COIN_TEXT_X, TOP_COIN_TEXT_TOP, ROW_SIZE, Ui.CREAM);
+		text(g, Wallet.coinText(), TOP_COIN_TEXT_X, TOP_COIN_TEXT_TOP, ROW_SIZE, Ui.CREAM);
 
 		tab(g, RANK_TAB, "랭킹", TAB_LABEL_SIZE);
 		pill(g, WEEK_BUTTON, "주간", weekly);
@@ -248,7 +273,11 @@ class RankingScreen extends DesignPanel {
 			text(g, REWARD_VALUES[i], REWARD_VALUE_X, REWARD_TOP[i], SMALL_SIZE, Ui.CREAM);
 		}
 
-		text(g, "주간 랭킹 마감까지 2일 14시간", DEADLINE_X, DEADLINE_TOP, HINT_SIZE, DIM_CREAM);
+		// 보상을 막 받았으면 그 안내를, 아니면 마감까지 남은 시간을 적는다 (자리가 한 줄뿐이다)
+		if (rewardNotice != null)
+			text(g, rewardNotice, DEADLINE_X, DEADLINE_TOP, HINT_SIZE, Color.WHITE);
+		else
+			text(g, Ranking.deadlineText(), DEADLINE_X, DEADLINE_TOP, HINT_SIZE, DIM_CREAM);
 
 		fill(g, START, Ui.CREAM);
 		textInBox(g, "시작하기", START, ROW_SIZE, Color.BLACK);

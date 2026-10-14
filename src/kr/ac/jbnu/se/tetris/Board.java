@@ -42,6 +42,13 @@ public class Board extends JPanel implements ActionListener {
 
 	private final LineClearEffect flash;             // [flash] 줄 삭제 깜빡임 효과
 
+	/** 레벨이 올랐을 때 알릴 곳. (화면이 '레벨 클리어' 덮개를 띄운다) */
+	private java.util.function.IntConsumer onLevelUp = null;
+
+	// [소리] 직전 상태와 비교해서 줄 삭제 / 레벨업 / 게임 오버에 효과음을 낸다
+	private int lastLines = 0, lastLevel = 1;
+	private boolean lastOver = false;
+
 	/** 보드가 다시 그려질 때 같이 갱신할 곳. (Hold/Next 를 그리는 바깥 패널) */
 	private Runnable onRepaint = null;
 
@@ -88,6 +95,7 @@ public class Board extends JPanel implements ActionListener {
 		isStarted = true;
 		flash.stop();                // [flash]
 		clearLockState();
+		lastLines = 0; lastLevel = 1; lastOver = false;   // [소리]
 		slow = false;                // [아이템] 감속은 판마다 초기화
 		slowTimer.stop();
 		game.reset();                // reset() 안에서 기믹도 초기화된다
@@ -120,6 +128,7 @@ public class Board extends JPanel implements ActionListener {
 		if (canControl()) {
 			if (game.moveLeft()) {
 				resetLock();
+				Sfx.play(Sfx.Sound.MOVE);
 			}
 			afterAction();
 		}
@@ -129,6 +138,7 @@ public class Board extends JPanel implements ActionListener {
 		if (canControl()) {
 			if (game.moveRight()) {
 				resetLock();
+				Sfx.play(Sfx.Sound.MOVE);
 			}
 			afterAction();
 		}
@@ -138,6 +148,7 @@ public class Board extends JPanel implements ActionListener {
 		if (canControl()) {
 			if (game.rotateRight()) {
 				resetLock();
+				Sfx.play(Sfx.Sound.ROTATE);
 			}
 			afterAction();
 		}
@@ -147,6 +158,7 @@ public class Board extends JPanel implements ActionListener {
 		if (canControl()) {
 			if (game.rotateLeft()) {
 				resetLock();
+				Sfx.play(Sfx.Sound.ROTATE);
 			}
 			afterAction();
 		}
@@ -156,6 +168,7 @@ public class Board extends JPanel implements ActionListener {
 		if (canControl()) {
 			clearLockState();
 			game.hardDrop();
+			Sfx.play(Sfx.Sound.DROP);
 			afterAction();
 		}
 	}
@@ -185,6 +198,7 @@ public class Board extends JPanel implements ActionListener {
 
 	/** 게임 상태를 상태바와 타이머에 반영하고 화면을 다시 그린다. */
 	private void afterAction() {
+		playStateSounds();
 		if (game.isGameOver()) {
 			timer.stop();
 			gimmickTimer.stop();     // [기믹]
@@ -204,6 +218,38 @@ public class Board extends JPanel implements ActionListener {
 		if(onUpdate!=null){
 			onUpdate.run();
 		}
+	}
+
+	/** [소리] 직전 상태와 달라진 것만 골라 효과음을 낸다. */
+	private void playStateSounds() {
+		if (game.getLinesRemoved() > lastLines) {
+			lastLines = game.getLinesRemoved();
+			Sfx.play(Sfx.Sound.CLEAR);
+		}
+		if (game.getLevel() > lastLevel) {
+			int cleared = lastLevel;          // 방금 끝낸 레벨
+			lastLevel = game.getLevel();
+			Sfx.play(Sfx.Sound.LEVEL_UP);
+			if (onLevelUp != null)
+				onLevelUp.accept(cleared);
+		}
+		if (game.isGameOver() && !lastOver) {
+			lastOver = true;
+			Sfx.play(Sfx.Sound.GAME_OVER);
+		}
+	}
+
+	/** 레벨이 올랐을 때 할 일을 등록한다. (끝낸 레벨 번호를 넘긴다) */
+	public void onLevelUp(java.util.function.IntConsumer action) {
+		this.onLevelUp = action;
+	}
+
+	/** 레벨 클리어 뒤 이어서 하기. 쌓인 블록만 비우고 점수·레벨은 유지한다. */
+	public void clearStack() {
+		flash.stop();
+		clearLockState();
+		game.clearStack();
+		afterAction();
 	}
 
 	/** 감속이 끝나면 원래 속도로 돌려놓는다. */
@@ -226,6 +272,7 @@ public class Board extends JPanel implements ActionListener {
 				slowTimer.restart();
 				break;
 		}
+		Sfx.play(Sfx.Sound.ITEM);
 		afterAction();
 		return true;
 	}
@@ -455,6 +502,7 @@ public class Board extends JPanel implements ActionListener {
 		if (!canControl() || !isGrounded()) return;
 		clearLockState();
 		game.lockPiece();
+		Sfx.play(Sfx.Sound.LOCK);
 		afterAction();
 	}
 

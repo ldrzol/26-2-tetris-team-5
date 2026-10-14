@@ -36,7 +36,7 @@ final class Settings {
 	/** 랭킹에 적을 이름. 게임이 끝날 때 물어보고, 다음 판의 기본값으로 남는다. */
 	static String playerName = System.getProperty("user.name", "PLAYER");
 
-	static int bgm = DEFAULT_VOLUME, sfx = DEFAULT_VOLUME;
+	static int sfx = DEFAULT_VOLUME;   // 배경음악은 없다. 효과음 볼륨만 쓴다
 	static boolean ghost = DEFAULT_GHOST, grid = DEFAULT_GRID;
 	static int[][] keys = copy(DEFAULT_KEYS);
 

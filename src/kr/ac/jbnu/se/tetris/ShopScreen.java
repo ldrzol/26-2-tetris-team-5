@@ -70,6 +70,7 @@ class ShopScreen extends DesignPanel {
 	private void select(int dc, int dr) {
 		col = (col + dc + ROWS.length) % ROWS.length;
 		row = Math.min(Math.max(row + dr, 0), ROWS[col] - 1);
+		Sfx.play(Sfx.Sound.MOVE);
 		repaint();
 	}
 
@@ -80,16 +81,20 @@ class ShopScreen extends DesignPanel {
 			if (Wallet.owns(skin)) {
 				Wallet.equip(skin);
 				status = skin.label + " 를 장착했습니다";
+				Sfx.play(Sfx.Sound.ROTATE);
 			} else if (Wallet.buy(skin)) {
 				status = skin.label + " 를 구매해 장착했습니다";
+				Sfx.play(Sfx.Sound.COIN);
 			} else {
 				status = "코인이 부족합니다";
+				Sfx.play(Sfx.Sound.LOCK);
 			}
 		} else {
 			Box box = Box.values()[row];
 			Item got = Wallet.buy(box);
 			status = got == null ? "코인이 부족합니다"
 					: box.label + " 에서 " + got.label + " 을(를) 얻었습니다!";
+			Sfx.play(got == null ? Sfx.Sound.LOCK : Sfx.Sound.COIN);
 		}
 		repaint();
 	}
@@ -104,7 +109,7 @@ class ShopScreen extends DesignPanel {
 		text(g, "뒤로", BACK_TEXT_X, BACK_TEXT_TOP, ROW_SIZE, Ui.CREAM);
 
 		drawImage(g, COIN_ICON, TOP_COIN);
-		text(g, String.valueOf(Wallet.coins()), TOP_COIN_TEXT_X, TOP_COIN_TEXT_TOP, ROW_SIZE, Ui.CREAM);
+		text(g, Wallet.coinText(), TOP_COIN_TEXT_X, TOP_COIN_TEXT_TOP, ROW_SIZE, Ui.CREAM);
 
 		tab(g, SKIN_TAB, "블록 스킨", TAB_SIZE);
 		outline(g, SKIN_BOX);
