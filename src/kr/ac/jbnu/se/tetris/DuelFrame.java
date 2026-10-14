@@ -77,7 +77,7 @@ public class DuelFrame extends JFrame {
         }
         if (myBoard.getGame().isGameOver()) {
             finished = true;
-            setTitle("패배 - 참가비 " + fee + " 코인을 잃었습니다");
+            showResult("패배", "참가비 " + fee + " 코인을 잃었습니다 (보유 " + Coins.get() + ")");
             return;
         }
         long left = (endTime - System.currentTimeMillis()) / 1000;
@@ -102,13 +102,18 @@ public class DuelFrame extends JFrame {
         int mine = myBoard.score();
         if (mine > opponentScore) {
             Coins.add(fee * 2);
-            setTitle("시간 종료 - 승리! 참가비 " + fee + " 코인을 받았습니다");
+            showResult("승리!", "시간 종료 - 참가비 " + fee + " 코인을 받았습니다 (보유 " + Coins.get() + ")");
         } else if (mine == opponentScore) {
             Coins.add(fee);
-            setTitle("시간 종료 - 무승부, 참가비를 돌려받았습니다");
+            showResult("무승부", "시간 종료 - 참가비를 돌려받았습니다 (보유 " + Coins.get() + ")");
         } else {
-            setTitle("시간 종료 - 패배, 참가비 " + fee + " 코인을 잃었습니다");
+            showResult("패배", "시간 종료 - 참가비 " + fee + " 코인을 잃었습니다 (보유 " + Coins.get() + ")");
         }
+    }
+
+    private void showResult(String title, String detail) {
+        setTitle(title);
+        ResultPanel.show(this, connection, title, detail);
     }
 
     public int itemCount() {
@@ -158,6 +163,8 @@ public class DuelFrame extends JFrame {
                 return new ReverseKeys();
             case INVISIBLE:
                 return new InvisiblePiece();
+            case FLIP_BOARD:
+                return new FlipBoard();
             case COVER_SCREEN:
                 return new CoverScreen();
             case ERASE_DOT:
@@ -194,7 +201,7 @@ public class DuelFrame extends JFrame {
                 finished = true;
                 myBoard.setPaused(true);
                 Coins.add(fee * 2);
-                setTitle("승리! 참가비 " + fee + " 코인을 받았습니다");
+                showResult("승리!", "참가비 " + fee + " 코인을 받았습니다 (보유 " + Coins.get() + ")");
             }
         });
     }
