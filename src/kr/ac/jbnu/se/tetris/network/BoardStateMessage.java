@@ -12,15 +12,17 @@ public class BoardStateMessage implements Serializable {
     public final int[] pieceX;
     public final int[] pieceY;
     public final int linesRemoved;
+    public final int score;
     public final boolean gameOver;
 
     public BoardStateMessage(Tetrominoes[] cells, Tetrominoes currentType,
-                             int[] pieceX, int[] pieceY, int linesRemoved, boolean gameOver) {
+                             int[] pieceX, int[] pieceY, int linesRemoved, int score, boolean gameOver) {
         this.cells = cells;
         this.currentType = currentType;
         this.pieceX = pieceX;
         this.pieceY = pieceY;
         this.linesRemoved = linesRemoved;
+        this.score = score;
         this.gameOver = gameOver;
     }
 }

@@ -8,6 +8,28 @@ import kr.ac.jbnu.se.tetris.Shape;
 import kr.ac.jbnu.se.tetris.Tetrominoes;
 
 public class AIplayer {
+    public enum Level {
+        EASY("쉬움", 0.1, 400, 0.2),
+        NORMAL("보통", 0.05, 300, 0.25),
+        HARD("어려움", 0.0, 200, 0.3);
+
+        private final String label;
+        private final double mistakeRate;
+        private final int stepMillis;
+        private final double hardDropChance;
+
+        Level(String label, double mistakeRate, int stepMillis, double hardDropChance) {
+            this.label = label;
+            this.mistakeRate = mistakeRate;
+            this.stepMillis = stepMillis;
+            this.hardDropChance = hardDropChance;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
     private Board view;
     private GameBoard game;
     private TetrisAI ai = new TetrisAI();
@@ -15,12 +37,19 @@ public class AIplayer {
     private Move plan = null;
     private int rotationsLeft = 0;
     private int lastY = -1;
-    private double mistakeRate = 0.2;
+    private final double mistakeRate;
+    private final double hardDropChance;
 
     public AIplayer(Board view) {
+        this(view, Level.NORMAL);
+    }
+
+    public AIplayer(Board view, Level level) {
         this.view = view;
         this.game = view.getGame();
-        timer = new Timer(300, e -> playOneStep());
+        this.mistakeRate = level.mistakeRate;
+        this.hardDropChance = level.hardDropChance;
+        timer = new Timer(level.stepMillis, e -> playOneStep());
     }
 
     public void start() {
@@ -67,7 +96,7 @@ public class AIplayer {
             game.moveRight();
         } else if (game.getCurX() > plan.x) {
             game.moveLeft();
-        } else if (Math.random() < 0.2) {
+        } else if (Math.random() < hardDropChance) {
             game.hardDrop();
             plan = null;
         } else {

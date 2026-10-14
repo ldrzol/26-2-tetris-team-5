@@ -89,6 +89,10 @@ public class SharedGame implements SharedState {
         return gameOver;
     }
 
+    public void end() {
+        gameOver = true;
+    }
+
     public int getWinner() {
         if (players[0].score > players[1].score) {
             return 0;

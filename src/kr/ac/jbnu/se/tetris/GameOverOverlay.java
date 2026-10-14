@@ -33,9 +33,13 @@ class GameOverOverlay extends DesignPanel {
 	private int selected = 0;
 
 	GameOverOverlay(int score, int coins, Runnable onRetry, Runnable onMenu) {
+		this(Wallet.cleared(score) ? "CLEAR!" : "GAME OVER", score, coins, onRetry, onMenu);
+	}
+
+	GameOverOverlay(String title, int score, int coins, Runnable onRetry, Runnable onMenu) {
 		this.scoreText = String.format("Score  %06d", score);
 		this.coinText = coins > 0 ? "코인  +" + coins : null;
-		this.title = Wallet.cleared(score) ? "CLEAR!" : "GAME OVER";
+		this.title = title;
 		this.onRetry = onRetry;
 		this.onMenu = onMenu;
 		setOpaque(false);   // 뒤 게임 화면이 비쳐야 한다

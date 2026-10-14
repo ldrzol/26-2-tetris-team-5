@@ -33,7 +33,8 @@ public class GameBoard {
     private int curX = 0;                   // 현재 블록 기준점 x
     private int curY = 0;                   // 현재 블록 기준점 y
     private int linesRemoved = 0;           // 지운 줄 수
-    private boolean gameOver = false;       // 게임 오버 여부
+    private boolean gameOver = false;// 게임 오버 여부
+    private boolean levelProgression = true;   // false 면 레벨이 1로 고정된다
     private boolean spawnPending = false;   // 줄이 지워져서 새 블록을 다음 틱에 만들어야 하는 상태
     private final List<Integer> flashRows = new ArrayList<>(); // 깜빡이는 중인(곧 지워질) 줄들
     private final Random rand = new Random();
@@ -70,8 +71,10 @@ public class GameBoard {
         return 500 * level * (level + 1);
     }
 
-    /** 현재 레벨. 점수가 levelGoal 을 넘을 때마다 오른다. */
+    /** 현재 레벨. 점수가 levelGoal 을 넘을 때마다 오른다. 레벨 올리기를 껐으면 늘 1이다. */
     public int getLevel() {
+        if (!levelProgression)
+            return 1;
         int level = 1;
         while (level < MAX_LEVEL && score >= levelGoal(level))
             level++;
@@ -98,6 +101,10 @@ public class GameBoard {
         spawn();
     }
 
+    /** 2인 대전처럼 레벨이 오르면 안 되는 판에서는 false 로 끈다. */
+    public void setLevelProgression(boolean on) {
+        levelProgression = on;
+    }
     /** 보드를 비우고 상태를 초기화한다. (첫 블록은 spawn()으로 따로 만든다) */
     public void reset() {
         for (int i = 0; i < HEIGHT; ++i){
@@ -159,6 +166,13 @@ public class GameBoard {
         return result;
     }
 
+    private long spawnedAtMs = 0;   // 현재 블록이 나온 시각
+
+    /** 현재 블록이 나온 지 몇 ms 지났는지. */
+    public long msSinceSpawn() {
+        return System.currentTimeMillis() - spawnedAtMs;
+    }
+
     /** 새 블록 생성. 예고된 next 를 꺼내 쓰고 다음 것을 새로 뽑는다. */
     public boolean spawn() {
         Tetrominoes shape = nextShape;
@@ -170,6 +184,7 @@ public class GameBoard {
 
     /** 주어진 블록을 시작 위치에 놓는다. 놓을 수 없으면 게임 오버. */
     private boolean place(Tetrominoes shape, int color) {
+        spawnedAtMs = System.currentTimeMillis();   // [기믹] INVISIBLE 이 첫 1초간 보여 주기 위한 기준 시각
         curPiece.setShape(shape);
         curColor = color;
         curX = WIDTH / 2 + 1;
