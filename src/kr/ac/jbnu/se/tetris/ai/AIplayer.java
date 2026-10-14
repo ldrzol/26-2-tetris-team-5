@@ -10,8 +10,8 @@ import kr.ac.jbnu.se.tetris.Tetrominoes;
 public class AIplayer {
     public enum Level {
         EASY("쉬움", 0.1, 400, 0.2),
-        NORMAL("보통", 0.05, 250, 0.25),
-        HARD("어려움", 0.0, 150, 0.3);
+        NORMAL("보통", 0.05, 300, 0.25),
+        HARD("어려움", 0.0, 200, 0.3);
 
         private final String label;
         private final double mistakeRate;
