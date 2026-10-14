@@ -242,9 +242,7 @@ public class Gimmick {
 
 }
 
-// ====================================================================
 // 아래는 같은 패키지 안에서만 쓰는 기믹 클래스들 (public 아님)
-// ====================================================================
 
 /** 기믹 하나가 구현하는 인터페이스. 필요한 훅만 오버라이드하면 된다. */
 interface GimmickEffect {
@@ -408,8 +406,8 @@ class RandomKeys implements GimmickEffect {
 /**
  * 블록이 저절로 돌아간다. 하드 드롭으로 떨어뜨리면 그 순간의 방향 그대로 굳는다.
  *
- * ponytail: 1초 타이머에 얹어서 1초에 한 번 돌린다. 더 빙글빙글 돌려야 하면
- * Board 에 짧은 타이머를 하나 더 두고 forceRotate() 를 부르면 된다.
+ * 기믹용 1초 타이머에 얹어 1초에 한 번 돌린다. 더 빠르게 돌리려면 Board 에 짧은
+ * 타이머를 하나 더 두고 forceRotate() 를 부른다.
  */
 class SpinBlock implements GimmickEffect {
     @Override public String name() { return "SPIN"; }

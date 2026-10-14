@@ -37,7 +37,7 @@ abstract class DesignPanel extends JPanel {
 	/** 상자 테두리 굵기 (디자인 기준) */
 	static final int BORDER = 6;
 
-	/** 오른쪽 위 톱니 아이콘 자리 — 모든 화면에 공통이다. */
+	/** 오른쪽 위 톱니 아이콘 자리 - 모든 화면에 공통이다. */
 	static final Rectangle GEAR = new Rectangle(1856, 66, 78, 78);
 
 	static final Color DIM_CREAM = new Color(0x8B857A);
@@ -81,8 +81,7 @@ abstract class DesignPanel extends JPanel {
 		return IMAGE_CACHE.get(path);
 	}
 
-	// ── 좌표 변환 ───────────────────────────────────────────────────────────
-
+	// 좌표 변환
 	/** 디자인 전체가 창 안에 들어가도록 배율을 정하고, 남는 여백만큼 가운데로 민다. */
 	private void updateTransform() {
 		scale = Math.min(getWidth() / (double) DESIGN_W, getHeight() / (double) DESIGN_H);
@@ -129,8 +128,7 @@ abstract class DesignPanel extends JPanel {
 		return font(designSize, 0);
 	}
 
-	// ── 공통 부품 ───────────────────────────────────────────────────────────
-
+	// 공통 부품
 	/** 배경 그림을 화면에 꽉 차게 깐다. (비율 유지, 넘치는 부분은 잘림) */
 	void background(Graphics2D g, Image img) {
 		if (img == null)
@@ -173,8 +171,7 @@ abstract class DesignPanel extends JPanel {
 		drawImage(g, GEAR_ICON, GEAR);
 	}
 
-	// ── 마우스 ──────────────────────────────────────────────────────────────
-
+	// 마우스
 	private List<Rectangle> clickAreas;
 	private List<Runnable> clickActions;
 
@@ -309,8 +306,7 @@ abstract class DesignPanel extends JPanel {
 		return py(designY) + (sz(designHeight) + fm.getAscent() - fm.getDescent()) / 2;
 	}
 
-	// ── 그리기 진입점 ───────────────────────────────────────────────────────
-
+	// 그리기 진입점
 	@Override
 	public void doLayout() {
 		updateTransform();
@@ -332,8 +328,7 @@ abstract class DesignPanel extends JPanel {
 		paintDesign(g);
 	}
 
-	// ── 보드 ────────────────────────────────────────────────────────────────
-
+	// 보드
 	/**
 	 * 디자인 자리 안에 10 x VISIBLE_HEIGHT 칸을 정사각형으로 채워 넣은 영역.
 	 * designCell 은 칸 하나의 디자인 기준 크기이고, 자리에 안 들어가면 그만큼 줄어든다.

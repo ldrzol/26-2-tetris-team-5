@@ -21,8 +21,7 @@ import java.util.List;
  * 한 줄 = 이름,점수,날짜. 이름 안의 쉼표와 줄바꿈은 지워서 적는다.
  * 다른 사람 기록도 같은 파일의 다른 이름일 뿐이라 따로 둘 것이 없다.
  *
- * ponytail: 한 PC 안의 파일 하나. 여러 PC 기록을 한 표에 모아야 하면
- * 그때 서버(HTTP + 파일)를 세운다. DB 는 그래도 필요 없다.
+ * 기록은 한 PC 안의 파일 하나로 끝낸다. 여러 PC 기록을 한 표에 모으려면 서버가 따로 필요하다.
  */
 final class Ranking {
 
@@ -74,8 +73,7 @@ final class Ranking {
 		return all.indexOf(mine) + 1;   // 잘려 나갔으면 -1 + 1 = 0
 	}
 
-	// ── 주간 랭킹 ───────────────────────────────────────────────────────────
-
+	// 주간 랭킹
 	/** 그 날짜가 속한 주의 이름. 월요일 시작(ISO) 기준이다. (예: 2026-W42) */
 	static String weekOf(LocalDate date) {
 		WeekFields w = WeekFields.ISO;

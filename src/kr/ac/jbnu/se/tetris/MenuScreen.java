@@ -17,7 +17,7 @@ class MenuScreen extends DesignPanel {
 
 	private static final Image BACKGROUND = image("images/menu_bg.png");
 
-	// ── Figma 수치 (디자인 기준 픽셀) ────────────────────────────────────────
+	// Figma 수치 (디자인 기준 픽셀)
 	private static final Rectangle BOX_OUTER = new Rectangle(745, 657, 510, 320);
 	private static final Rectangle BOX_INNER = new Rectangle(751, 665, 497, 305);
 	private static final int BOX_BORDER = 8;

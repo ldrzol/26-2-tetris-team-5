@@ -15,7 +15,7 @@ import java.awt.event.KeyEvent;
  */
 class PauseOverlay extends DesignPanel {
 
-	// ── Figma "리플레이 화면" 수치 (디자인 기준 픽셀) ───────────────────────
+	// Figma "리플레이 화면" 수치 (디자인 기준 픽셀)
 	private static final Rectangle BOX_OUTER = new Rectangle(689, 333, 622, 757);
 	private static final Rectangle BOX_INNER = new Rectangle(697, 342, 606, 740);
 	private static final int BOX_BORDER = 8;

@@ -6,7 +6,9 @@ import javax.swing.JFrame;
 import javax.swing.JLayeredPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+
 import kr.ac.jbnu.se.tetris.ai.AIplayer;
+import kr.ac.jbnu.se.tetris.network.PeerConnection;
 
 /** 프로그램의 유일한 창. 모든 화면을 CardLayout 으로 갈아 끼운다. */
 public class MainFrame extends JFrame {
@@ -84,8 +86,6 @@ public class MainFrame extends JFrame {
 				return new ShopScreen(() -> showScreen(MENU));
 			case SINGLE:
 				return new SinglePanel(this);
-			case VERSUS:
-				return new VersusPanel(this, VERSUS, false);
 			case PRACTICE:
 				return new VersusPanel(this, PRACTICE, true);   // 오른쪽 보드를 AI 가 조종한다
 			default:
@@ -123,9 +123,14 @@ public class MainFrame extends JFrame {
 		showOverlay(new GameOverOverlay(score, coins, () -> showScreen(kind), () -> showScreen(MENU)));
 	}
 
-	/** 대전 결과. title 은 YOU WIN / YOU LOSE / DRAW. */
-	void showResult(String title, int score, String kind) {
-		showOverlay(new GameOverOverlay(title, score, 0, () -> showScreen(kind), () -> showScreen(MENU)));
+	/** 대전 결과. title 은 YOU WIN / YOU LOSE / DRAW. coins 는 정산으로 받은 코인. */
+	void showResult(String title, int score, int coins, String kind) {
+		showOverlay(new GameOverOverlay(title, score, coins, () -> showScreen(kind), () -> showScreen(MENU)));
+	}
+
+	/** 네트워크 2인 대전을 띄운다. 끝나면 참가비를 정산한다. */
+	void showVersus(PeerConnection connection, int fee) {
+		show(new VersusPanel(this, connection, fee), VERSUS);
 	}
 
 	/**

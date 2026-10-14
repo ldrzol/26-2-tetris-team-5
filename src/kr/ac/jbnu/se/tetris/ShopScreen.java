@@ -24,7 +24,7 @@ class ShopScreen extends DesignPanel {
 			BOX_ICONS.put(box, image(box.icon));
 	}
 
-	// ── 디자인 기준 픽셀 ────────────────────────────────────────────────────
+	// 디자인 기준 픽셀
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 
 	private static final Rectangle BACK = new Rectangle(73, 66, 232, 81);
@@ -43,6 +43,7 @@ class ShopScreen extends DesignPanel {
 	private static final Rectangle BAG_BOX = new Rectangle(140, 982, 1720, 160);
 
 	private static final int ROW_TOP = 40, ROW_H = 110;   // 상자 안 첫 줄 위치와 줄 간격
+	private static final int BAG_SLOT_W = 560;            // 보유 아이템 한 칸의 가로 폭
 	private static final int PAD = 50;                    // 상자 안쪽 좌우 여백
 	private static final int ICON = 70, ICON_DROP = 20;   // 상자 그림 크기
 	private static final Rectangle ARROW = new Rectangle(0, 0, 20, 37);
@@ -99,8 +100,7 @@ class ShopScreen extends DesignPanel {
 		repaint();
 	}
 
-	// ── 그리기 ──────────────────────────────────────────────────────────────
-
+	// 그리기
 	@Override
 	void paintDesign(Graphics2D g) {
 		textCenteredIn(g, "상점", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
@@ -172,7 +172,7 @@ class ShopScreen extends DesignPanel {
 			int textX = x + ICON + 30;
 			text(g, item.label + " x" + Wallet.count(item), textX, BAG_BOX.y + 30, ROW_SIZE, Ui.CREAM);
 			text(g, item.desc, textX, BAG_BOX.y + 85, SMALL_SIZE, DIM_CREAM);
-			x += 560;
+			x += BAG_SLOT_W;
 		}
 	}
 

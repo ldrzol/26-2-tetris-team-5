@@ -6,7 +6,7 @@ import java.awt.event.KeyEvent;
  * 환경 설정 값. 화면을 새로 만들어도 남아 있어야 하므로 한 곳에 모아 둔다.
  *
  * SettingsScreen 이 사본을 고치고, '저장하기' 를 누를 때만 여기로 옮겨 적는다.
- * ponytail: 메모리에만 둔다. 프로그램을 다시 켜도 남겨야 하면 Preferences 로 바꾼다.
+ * 값은 메모리에만 둔다. 프로그램을 다시 켜도 남기려면 Preferences 로 옮겨야 한다.
  */
 final class Settings {
 

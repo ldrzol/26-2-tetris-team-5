@@ -25,7 +25,7 @@ public class Board extends JPanel implements ActionListener {
 	private final Timer timer;                       // 블록을 주기적으로 떨어뜨리는 타이머
 	private final JLabel statusbar;                  // 이 보드 전용 상태바
 	private boolean isStarted = false;               // 게임 진행 중 여부
-	private boolean isPaused = false;// 일시정지 여부
+	private boolean isPaused = false;   // 일시정지 여부
 
 	// [기믹] 낙하 속도: 레벨이 오를수록 간격이 줄고, SPEED_UP 기믹이 켜지면 추가로 빨라진다
 	private static final int BASE_DELAY = 400;
@@ -57,18 +57,10 @@ public class Board extends JPanel implements ActionListener {
 	/** 보드가 다시 그려질 때 같이 갱신할 곳. (Hold/Next 를 그리는 바깥 패널) */
 	private Runnable onRepaint = null;
 
-	private Runnable onUpdate;
-
 	private static final int LOCK_DELAY = 500;
 	private static final int MAX_LOCK_RESETS = 15;
 	private final Timer lockTimer = new Timer(LOCK_DELAY, e -> onLockTimeout());
 	private int lockResets = 0;
-
-	public void setOnUpdate(Runnable onUpdate){
-		this.onUpdate = onUpdate;
-	}
-
-
 
 	public Board(JLabel statusbar) {
 		this.statusbar = statusbar;
@@ -111,7 +103,7 @@ public class Board extends JPanel implements ActionListener {
 		afterAction();
 	}
 
-	/** 일시정지 상태를 지정한다. (Tetris가 모든 보드에 같은 값을 전달한다) */
+	/** 일시정지 상태를 지정한다. 대전 화면은 두 보드에 같은 값을 넘긴다. */
 	public void setPaused(boolean paused) {
 		if (!isStarted || isPaused == paused)
 			return;
@@ -222,9 +214,6 @@ public class Board extends JPanel implements ActionListener {
 		if (onRepaint != null)
 			onRepaint.run();
 		repaint();
-		if(onUpdate!=null){
-			onUpdate.run();
-		}
 	}
 
 	/** [소리] 직전 상태와 달라진 것만 골라 효과음을 낸다. */

@@ -33,7 +33,7 @@ public class GameBoard {
     private int curX = 0;                   // 현재 블록 기준점 x
     private int curY = 0;                   // 현재 블록 기준점 y
     private int linesRemoved = 0;           // 지운 줄 수
-    private boolean gameOver = false;// 게임 오버 여부
+    private boolean gameOver = false;        // 게임 오버 여부
     private boolean levelProgression = true;   // false 면 레벨이 1로 고정된다
     private boolean spawnPending = false;   // 줄이 지워져서 새 블록을 다음 틱에 만들어야 하는 상태
     private final List<Integer> flashRows = new ArrayList<>(); // 깜빡이는 중인(곧 지워질) 줄들
@@ -79,11 +79,6 @@ public class GameBoard {
         while (level < MAX_LEVEL && score >= levelGoal(level))
             level++;
         return level;
-    }
-
-    /** 이번 레벨을 끝내는 데 필요한 점수. (화면 표시용) */
-    public int getLevelGoal() {
-        return levelGoal(getLevel());
     }
 
     /**
@@ -144,26 +139,6 @@ public class GameBoard {
         Tetrominoes next = queue.pollFirst();
         refillQueue();
         return next;
-    }
-
-    /**
-     * 앞으로 나올 블록을 순서대로 n개 미리 본다.
-     * 맨 앞은 이미 큐에서 꺼내 둔 nextShape 이므로 그것부터 넣어야
-     * Nextpanel 의 예고와 실제로 나오는 순서가 어긋나지 않는다.
-     */
-    public List<Tetrominoes> peekNext(int n){
-        refillQueue();
-        List<Tetrominoes> result = new ArrayList<>();
-        if(n > 0 && nextShape != null && nextShape != Tetrominoes.NoShape){
-            result.add(nextShape);
-        }
-        for(Tetrominoes t : queue){
-            if(result.size()>=n){
-                break;
-            }
-            result.add(t);
-        }
-        return result;
     }
 
     private long spawnedAtMs = 0;   // 현재 블록이 나온 시각
@@ -372,13 +347,7 @@ public class GameBoard {
         return cells[y][x];
     }
 
-    public Tetrominoes currentType() {
-        return curPiece.getShape();
-    }
-
-    public Tetrominoes getHoldType(){ return holdShape; }
-    public boolean isHoldUsed(){ return holdLocked; }
-
+    /** AI 가 판을 읽을 때 쓴다. */
     public Shape getCurPiece() {
         return curPiece;
     }
@@ -389,6 +358,50 @@ public class GameBoard {
 
     public int getCurY() {
         return curY;
+    }
+
+    public Tetrominoes currentType() {
+        return curPiece.getShape();
+    }
+
+    /**
+     * 지금 화면에 보이는 칸들을 한 줄로 편다. 쌓인 칸 위에 떨어지는 블록까지 찍어 넣는다.
+     *
+     * 상대에게 보낼 화면을 만들 때 쓴다. 두 배열은 WIDTH * HEIGHT 길이여야 한다.
+     */
+    public void writeVisible(Tetrominoes[] shapes, int[] colors) {
+        for (int y = 0; y < HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                shapes[y * WIDTH + x] = cells[y][x];
+                colors[y * WIDTH + x] = colorIds[y][x];
+            }
+        }
+        if (curPiece.getShape() == Tetrominoes.NoShape)
+            return;
+        for (int i = 0; i < curPiece.size(); i++) {
+            int x = curX + curPiece.x(i);
+            int y = curY - curPiece.y(i);
+            if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT)
+                continue;
+            shapes[y * WIDTH + x] = curPiece.getShape();
+            colors[y * WIDTH + x] = curColor;
+        }
+    }
+
+    /**
+     * 상대 화면을 그대로 비춰 준다. 받은 칸으로 덮어쓰고 조작 블록은 비운다.
+     *
+     * 떨어지는 블록은 이미 칸에 찍혀서 오므로, 조작 블록을 비워 둬야 고스트가 안 그려진다.
+     */
+    public void applyRemoteState(Tetrominoes[] shapes, int[] colors) {
+        for (int y = 0; y < HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                cells[y][x] = shapes[y * WIDTH + x];
+                colorIds[y][x] = colors[y * WIDTH + x];
+            }
+        }
+        curPiece.setShape(Tetrominoes.NoShape);
+        flashRows.clear();
     }
 
     /** 지금 떨어지는 블록이 몇 칸짜리인지. 보통 4, 2개 동시 아이템이 걸리면 8. */

@@ -51,22 +51,24 @@ class ResultPanel extends JPanel {
         super.paintComponent(g);
     }
 
-    /** 제목과 설명을 창 위에 덮는다. 메인으로를 누르면 연결을 닫고 메인 메뉴로 돌아간다. */
-    static void show(JFrame frame, PeerConnection connection, String title, String detail) {
+    /** 제목과 설명을 창 위에 덮는다. 메인으로를 누르면 연결을 닫고 창을 치운 뒤 onExit 를 부른다. */
+    private static void show(JFrame frame, PeerConnection connection, String title, String detail,
+            Runnable onExit) {
         ResultPanel panel = new ResultPanel(title, detail, () -> {
             connection.close();
             frame.dispose();
-            new MainFrame().setVisible(true);
+            onExit.run();
         });
         frame.setGlassPane(panel);
         panel.setVisible(true);
     }
 
     /** 땅따먹기 결과. winner: 0=P1, 1=P2, -1=무승부. me: 나는 P1(0) 또는 P2(1). */
-    static void showShared(JFrame frame, PeerConnection connection, int winner, int me, int fee) {
+    static void showShared(JFrame frame, PeerConnection connection, int winner, int me, int fee,
+            Runnable onExit) {
         String title = winner == -1 ? "무승부" : winner == me ? "승리!" : "패배";
-        String detail = Coins.settle(winner, me, fee) + " (보유 " + Coins.get() + ")";
+        String detail = Wallet.settle(winner, me, fee) + " (보유 " + Wallet.coins() + ")";
         frame.setTitle(title);
-        show(frame, connection, title, detail);
+        show(frame, connection, title, detail, onExit);
     }
 }
