@@ -24,8 +24,9 @@ class SinglePanel extends DesignPanel {
 	private static final Rectangle SCORE_BOX = new Rectangle(1367, 653, 322, 100);
 	private static final Rectangle TIME_TAB = new Rectangle(1367, 808, 190, 62);
 	private static final Rectangle TIME_BOX = new Rectangle(1367, 870, 322, 100);
-	private static final Rectangle ITEM_TAB = new Rectangle(311, 591, 190, 62);
-	private static final Rectangle ITEM_BOX = new Rectangle(311, 653, 322, 300);
+	// Level/Gimmick 이 왼쪽을 쓰므로 아이템 칸은 Time 아래(오른쪽)에 둔다
+	private static final Rectangle ITEM_TAB = new Rectangle(1367, 1040, 190, 62);
+	private static final Rectangle ITEM_BOX = new Rectangle(1367, 1102, 322, 200);
 
 	/** 아이템 줄 (상자 안쪽 기준 오프셋) */
 	private static final int ITEM_X = 24, ITEM_TOP = 30, ITEM_GAP = 86;
@@ -34,6 +35,14 @@ class SinglePanel extends DesignPanel {
 	/** 아이템 안내문 자리 */
 	private static final int NOTICE_TOP = 1360;
 	private static final float NOTICE_SIZE = 36f;
+
+	// 왼쪽 아래: Score/Time 과 같은 높이에 Level, 그 아래에 켜진 기믹 목록
+	private static final Rectangle LEVEL_TAB = new Rectangle(311, 591, 190, 62);
+	private static final Rectangle LEVEL_BOX = new Rectangle(311, 653, 322, 100);
+	private static final Rectangle GIMMICK_TAB = new Rectangle(311, 808, 250, 62);
+	private static final Rectangle GIMMICK_BOX = new Rectangle(311, 870, 322, 200);
+	private static final float GIMMICK_SIZE = 36f;
+	private static final int GIMMICK_GAP = 56;
 
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 
@@ -45,7 +54,6 @@ class SinglePanel extends DesignPanel {
 
 	private final MainFrame frame;
 	private final Board board;
-	private String scoreText = "000000";
 	private String notice = "";
 	private String timeText = "05:00";
 	private int remain = TIME_LIMIT;
@@ -61,20 +69,14 @@ class SinglePanel extends DesignPanel {
 		board.onRepaint(this::repaint);    // Hold/Next 는 패널이 그리므로 같이 갱신해야 한다
 		add(board);
 
-		Ui.bind(this, KeyEvent.VK_LEFT, "left", board::moveLeft);
-		Ui.bind(this, KeyEvent.VK_RIGHT, "right", board::moveRight);
-		Ui.bind(this, KeyEvent.VK_UP, "rotate", board::rotateRight);
-		Ui.bind(this, KeyEvent.VK_DOWN, "soft", board::softDrop);
-		Ui.bind(this, KeyEvent.VK_SPACE, "hard", board::hardDrop);
-		Ui.bind(this, KeyEvent.VK_C, "hold", board::hold);
-		Ui.bind(this, KeyEvent.VK_SHIFT, "hold2", board::hold);
+		GameKeys.bind(this, 0, board);     // 설정한 조작키 (+ X, Shift 보조 키)
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
-		// 1 / 2 / 3 키로 가방에 있는 아이템을 쓴다
+		Ui.bind(this, KeyEvent.VK_P, "pause2", this::pause);
+		// 1 / 2 키로 가방에 있는 아이템을 쓴다
 		for (int i = 0; i < Item.values().length; i++) {
 			Item item = Item.values()[i];
 			Ui.bind(this, KeyEvent.VK_1 + i, "item" + i, () -> use(item));
 		}
-
 		onGear(this::pause);
 
 		board.start();
@@ -101,6 +103,7 @@ class SinglePanel extends DesignPanel {
 	}
 
 	private void resume() {
+		GameKeys.bind(this, 0, board);     // 일시정지 중에 설정을 바꿨을 수 있다
 		board.setPaused(false);
 		clock.start();
 	}
@@ -133,19 +136,26 @@ class SinglePanel extends DesignPanel {
 		outline(g, NEXT_BOX);
 		outline(g, SCORE_BOX);
 		outline(g, TIME_BOX);
+		outline(g, LEVEL_BOX);
+		outline(g, GIMMICK_BOX);
 
 		tab(g, HOLD_TAB, "Hold", TAB_SIZE);
 		tab(g, ITEM_TAB, "Item", TAB_SIZE);
 		tab(g, NEXT_TAB, "Next", TAB_SIZE);
 		tab(g, SCORE_TAB, "Score", TAB_SIZE);
 		tab(g, TIME_TAB, "Time", TAB_SIZE);
+		tab(g, LEVEL_TAB, "Level", TAB_SIZE);
+		tab(g, GIMMICK_TAB, "Gimmick", TAB_SIZE);
 
 		GameBoard game = board.getGame();
 		preview(g, HOLD_BOX, game.holdType(), game.getHoldColor());
 		preview(g, NEXT_BOX, game.nextType(), game.getNextColor());
 
-		valueRight(g, SCORE_BOX, scoreText, VALUE_SIZE, VALUE_PAD);
+		// 점수·레벨·기믹은 그릴 때마다 보드에서 바로 읽는다. (1초 시계를 기다리지 않는다)
+		valueRight(g, SCORE_BOX, String.format("%06d", board.score()), VALUE_SIZE, VALUE_PAD);
 		valueRight(g, TIME_BOX, timeText, VALUE_SIZE, VALUE_PAD);
+		valueRight(g, LEVEL_BOX, String.valueOf(game.getLevel()), VALUE_SIZE, VALUE_PAD);
+		nameList(g, GIMMICK_BOX, game.getGimmick().activeNameList(), GIMMICK_SIZE, GIMMICK_GAP);
 
 		items(g);
 		textCentered(g, notice, NOTICE_TOP, NOTICE_SIZE, Ui.CREAM, 0);
@@ -169,7 +179,6 @@ class SinglePanel extends DesignPanel {
 	private void tick() {
 		remain--;
 		timeText = mmss(remain);
-		scoreText = String.format("%06d", board.score());
 		repaint();
 
 		if (remain <= 0 || board.getGame().isGameOver()) {

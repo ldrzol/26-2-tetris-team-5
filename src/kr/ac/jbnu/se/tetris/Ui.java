@@ -59,7 +59,12 @@ final class Ui {
 	 * CardLayout 으로 가려진 화면의 바인딩은 동작하지 않는다.
 	 */
 	static void bind(JComponent c, int keyCode, String name, Runnable action) {
-		c.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(keyCode, 0), name);
+		bind(c, KeyStroke.getKeyStroke(keyCode, 0), name, action);
+	}
+
+	/** 수정키(Shift 등)가 섞인 키처럼 KeyStroke 를 직접 만들어 연결할 때. */
+	static void bind(JComponent c, KeyStroke stroke, String name, Runnable action) {
+		c.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(stroke, name);
 		c.getActionMap().put(name, new AbstractAction() {
 			public void actionPerformed(ActionEvent e) {
 				action.run();

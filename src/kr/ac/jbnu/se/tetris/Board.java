@@ -27,21 +27,24 @@ public class Board extends JPanel implements ActionListener {
 	private boolean isStarted = false;               // 게임 진행 중 여부
 	private boolean isPaused = false;// 일시정지 여부
 
-	private static final int SCORE_PER_LINE = 100;
+	// [기믹] 낙하 속도: 레벨이 오를수록 간격이 줄고, SPEED_UP 기믹이 켜지면 추가로 빨라진다
+	private static final int BASE_DELAY = 400;
+	private static final int MIN_DELAY = 100;
+	private static final int DELAY_STEP_PER_LEVEL = 30;
 
-	private static final int DROP_MS = 400;          // 평소 낙하 간격
-	private static final int SLOW_MS = 10000;        // 감속 아이템 지속 시간
-
+	// [아이템] 감속 아이템이 켜져 있는 동안은 낙하 간격을 두 배로 늘린다
+	private static final int SLOW_MS = 10000;
+	private boolean slow = false;
 	private final Timer slowTimer = new Timer(SLOW_MS, e -> endSlow());
 
-	private static final int FLASH_TOTAL = 6;//블럭 제거 이펙트 깜빡이는 횟수, 짝수로 둘 것
-	private final Timer flashTimer = new Timer(100, e -> onFlashTick());//깜빡이는 빈도
+	// [기믹] 1초마다 기믹(블록 사라짐 등)을 갱신하는 타이머
+	private final Timer gimmickTimer = new Timer(1000, e -> onGimmickSecond());
+
+	private final LineClearEffect flash;             // [flash] 줄 삭제 깜빡임 효과
 
 	/** 보드가 다시 그려질 때 같이 갱신할 곳. (Hold/Next 를 그리는 바깥 패널) */
 	private Runnable onRepaint = null;
 
-	private boolean flashOn = false;
-	private int flashCount = 0;
 	private Runnable onUpdate;
 
 	private static final int LOCK_DELAY = 500;
@@ -57,9 +60,10 @@ public class Board extends JPanel implements ActionListener {
 
 	public Board(JLabel statusbar) {
 		this.statusbar = statusbar;
-		timer = new Timer(DROP_MS, this);   // DROP_MS 마다 actionPerformed 호출
+		timer = new Timer(BASE_DELAY, this);   // 틱 간격은 afterAction()에서 레벨에 맞춰 조정
 		lockTimer.setRepeats(false);
 		slowTimer.setRepeats(false);
+		flash = new LineClearEffect(game, () -> isPaused, this::repaint, this::afterAction);   // [flash]
 	}
 
 	/** 타이머가 호출. 게임 규칙의 한 틱을 진행한 뒤 화면을 갱신한다. */
@@ -69,20 +73,27 @@ public class Board extends JPanel implements ActionListener {
 		afterAction();
 	}
 
+	/** [기믹] 1초마다 호출. 일시정지 중이거나 게임이 안 돌면 무시한다. */
+	private void onGimmickSecond() {
+		if (!isStarted || isPaused) return;
+		game.getGimmick().onSecond();
+		afterAction();   // 칸이 사라지면 락 상태와 화면도 다시 맞춘다
+	}
+
 	/** 게임 시작(또는 재시작). */
 	public void start() {
 		if (isPaused)
 			return;
 
 		isStarted = true;
-		flashTimer.stop();
-		flashOn = false;
+		flash.stop();                // [flash]
 		clearLockState();
+		slow = false;                // [아이템] 감속은 판마다 초기화
 		slowTimer.stop();
-		timer.setDelay(DROP_MS);
-		game.reset();
+		game.reset();                // reset() 안에서 기믹도 초기화된다
 		game.spawn();
 		timer.start();
+		gimmickTimer.restart();      // [기믹]
 		afterAction();
 	}
 
@@ -151,7 +162,8 @@ public class Board extends JPanel implements ActionListener {
 
 	public void softDrop() {
 		if (canControl()) {
-			game.moveDown();
+			if (game.moveDown())
+				game.addScore(1);   // 소프트 드롭: 칸마다 1점 (자동 낙하는 점수 없음)
 			afterAction();
 		}
 	}
@@ -175,13 +187,15 @@ public class Board extends JPanel implements ActionListener {
 	private void afterAction() {
 		if (game.isGameOver()) {
 			timer.stop();
-			flashTimer.stop();
+			gimmickTimer.stop();     // [기믹]
+			flash.stop();            // [flash]
 			clearLockState();
 			isStarted = false;
 			statusbar.setText("game over");
 		} else {
+			applyGimmickState();     // [기믹] 레벨에 맞는 기믹과 낙하 속도 반영
 			statusbar.setText(isPaused ? "paused" : String.valueOf(game.getLinesRemoved()));
-			startFlash();
+			flash.startIfNeeded();   // [flash]
 			syncLock();
 		}
 		if (onRepaint != null)
@@ -194,7 +208,8 @@ public class Board extends JPanel implements ActionListener {
 
 	/** 감속이 끝나면 원래 속도로 돌려놓는다. */
 	private void endSlow() {
-		timer.setDelay(DROP_MS);
+		slow = false;
+		applyGimmickState();
 	}
 
 	/** 가방에 있으면 아이템을 하나 써서 효과를 낸다. */
@@ -207,7 +222,7 @@ public class Board extends JPanel implements ActionListener {
 				game.downLine(0);           // 맨 아래 줄을 통째로 치운다
 				break;
 			case SLOW:
-				timer.setDelay(DROP_MS * 2);
+				slow = true;
 				slowTimer.restart();
 				break;
 		}
@@ -215,42 +230,34 @@ public class Board extends JPanel implements ActionListener {
 		return true;
 	}
 
-	private void startFlash(){
-		if(game.isClearing() && !flashTimer.isRunning()){
-			flashCount = 0;
-			flashOn = false;
-			flashTimer.start();
+	/** [기믹] 레벨에 맞춰 기믹을 바꾸고, 낙하 간격(timer delay)을 다시 정한다. */
+	private void applyGimmickState() {
+		Gimmick gm = game.getGimmick();
+		gm.applyLevel(game.getLevel());
+
+		int delay = Math.max(MIN_DELAY, BASE_DELAY - (game.getLevel() - 1) * DELAY_STEP_PER_LEVEL);
+		delay = Math.max(MIN_DELAY / 2, (int) (delay * gm.speedFactor()));
+		if (slow)
+			delay *= 2;              // [아이템] 감속 중에는 두 배로 느리게
+		if (timer.getDelay() != delay) {
+			timer.setDelay(delay);
 		}
 	}
 
-	private void drawFlash(Graphics g, int boardTop){
-		if(!flashOn){
-			return;
-		}
-		g.setColor(Color.WHITE);
-		for(int row = 0;row<GameBoard.VISIBLE_HEIGHT;++row){
-			if(game.isFlashRow(row)){
-				g.fillRect(0, boardTop+(GameBoard.VISIBLE_HEIGHT-row-1)*squareHeight(),
-						GameBoard.WIDTH*squareWidth(), squareHeight());
-			}
-		}
-	}
 
-	private void onFlashTick(){
-		if(isPaused){
-			return;
-		}
-		flashOn=!flashOn;
-		flashCount++;
+	private void drawGrid(Graphics g, int boardTop) {
+		int w = GameBoard.WIDTH * squareWidth();
+		int h = GameBoard.HEIGHT * squareHeight();
 
-		if(flashCount>=FLASH_TOTAL){
-			flashTimer.stop();
-			flashOn=false;
-			game.finishClear();
-			afterAction();
-			return;
+		g.setColor(new Color(0, 0, 0, 28));   // 연한 반투명 검정
+		for (int j = 0; j <= GameBoard.WIDTH; j++) {
+			int x = j * squareWidth();
+			g.drawLine(x, boardTop, x, boardTop + h);
 		}
-		repaint();
+		for (int i = 0; i <= GameBoard.HEIGHT; i++) {
+			int y = boardTop + i * squareHeight();
+			g.drawLine(0, y, w, y);
+		}
 	}
 
 	// 칸 크기는 패널의 실제 크기에서 계산하므로, 보드가 작아지면 칸도 같이 작아진다
@@ -262,13 +269,15 @@ public class Board extends JPanel implements ActionListener {
 		return (int) getSize().getHeight() / GameBoard.VISIBLE_HEIGHT;
 	}
 
-	/** 화면 그리기. 쌓인 블록 -> 현재 떨어지는 블록 순서로 그린다. */
+	/** 화면 그리기. 쌓인 블록 -> 고스트 -> 현재 떨어지는 블록 순서로 그린다. */
 	@Override
 	protected void paintComponent(Graphics g) {
 		super.paintComponent(g);
 
 		Dimension size = getSize();
 		int boardTop = (int) size.getHeight() - GameBoard.VISIBLE_HEIGHT * squareHeight();
+
+		drawGrid(g, boardTop);
 
 		// 1) 이미 바닥에 쌓인 블록
 		for (int i = 0; i < GameBoard.VISIBLE_HEIGHT; ++i) {
@@ -280,10 +289,16 @@ public class Board extends JPanel implements ActionListener {
 			}
 		}
 
-		drawGhost(g, boardTop);
+		// [기믹] INVISIBLE 이면 떨어지는 블록과 고스트를 둘 다 그리지 않는다
+		boolean invisible = game.getGimmick().hidesPiece();
+
+
+		if (!invisible) {
+			drawGhost(g, boardTop);
+		}
 
 		// 2) 현재 떨어지는 블록
-		if (game.currentType() != Tetrominoes.NoShape) {
+		if (!invisible && game.currentType() != Tetrominoes.NoShape) {
 			for (int i = 0; i < 4; ++i) {
 				int x = game.pieceX(i);
 				int y = game.pieceY(i);
@@ -292,7 +307,15 @@ public class Board extends JPanel implements ActionListener {
 						game.currentType(), game.getCurColor());
 			}
 		}
-		drawFlash(g, boardTop);
+
+		// [기믹] COVER: 보드 아래쪽을 어두운 막으로 가린다
+		double cover = game.getGimmick().coverRatio();
+		if (cover > 0) {
+			int h = (int) (GameBoard.VISIBLE_HEIGHT * squareHeight() * cover);
+			g.setColor(new Color(15, 15, 25));
+			g.fillRect(0, boardTop + GameBoard.VISIBLE_HEIGHT * squareHeight() - h, getWidth(), h);
+		}
+		flash.draw(g, boardTop, squareWidth(), squareHeight());   // [flash]
 	}
 
 	private static final Color GARBAGE_COLOR = new Color(153, 153, 153);
@@ -464,9 +487,9 @@ public class Board extends JPanel implements ActionListener {
 		return game;
 	}
 
-	/** 지운 줄로 매기는 점수. 화면들이 같은 식을 쓰므로 여기 한 곳에 둔다. */
+	/** 현재 점수. (줄 삭제, 드롭, 콤보, 퍼펙트 클리어는 GameBoard 가 계산한다) */
 	public int score() {
-		return game.getLinesRemoved() * SCORE_PER_LINE;
+		return game.getScore();
 	}
 
 	public boolean isRunning() {
