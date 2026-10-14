@@ -18,6 +18,7 @@ public class MainFrame extends JFrame {
 	static final String PRACTICE = "practice"; // Figma Desktop - 9 (상대가 AI)
 	static final String SETTINGS = "settings"; // Figma 환경 설정 화면
 	static final String RANKING = "ranking";   // Figma 랭킹 화면
+	static final String SHOP = "shop";         // 상점 화면
 
 	private final CardLayout cards = new CardLayout();
 	private final JPanel root = new JPanel(cards);
@@ -52,7 +53,7 @@ public class MainFrame extends JFrame {
 
 		// 게임이 아닌 화면의 톱니는 환경 설정으로 간다. 뒤로 가면 이 화면으로 돌아온다.
 		// (게임 화면은 톱니에 일시정지를 걸어 두므로 건드리지 않는다)
-		if (panel instanceof MenuScreen || panel instanceof RankingScreen)
+		if (panel instanceof MenuScreen || panel instanceof RankingScreen || panel instanceof ShopScreen)
 			((DesignPanel) panel).onGear(() -> show(new SettingsScreen(() -> showScreen(name)), SETTINGS));
 	}
 
@@ -66,6 +67,8 @@ public class MainFrame extends JFrame {
 				return new LobbyFrame(this);
 			case RANKING:
 				return new RankingScreen(() -> showScreen(SINGLE), () -> showScreen(MENU));
+			case SHOP:
+				return new ShopScreen(() -> showScreen(MENU));
 			case SINGLE:
 				return new SinglePanel(this);
 			case VERSUS:
@@ -74,14 +77,27 @@ public class MainFrame extends JFrame {
 				return new VersusPanel(this, PRACTICE, true);   // 오른쪽 보드를 AI 가 조종한다
 			default:
 				return new MenuScreen(new String[] { "TETRIS" }, new float[] { 250f }, 274,
-						new String[] { "1인 모드", "멀티 모드" },
-						i -> showScreen(i == 0 ? RANKING : MULTI));
+						new String[] { "1인 모드", "멀티 모드", "상점" },
+						i -> showScreen(i == 0 ? RANKING : i == 1 ? MULTI : SHOP));
 		}
+	}
+
+	/** 글자 한 줄을 묻는 덮개. 취소하면 onDone 에 null 이 간다. */
+	void showInput(String title, String initial, java.util.function.Consumer<String> onDone) {
+		showOverlay(new InputOverlay(title, initial, value -> {
+			clearOverlay();
+			onDone.accept(value);
+		}));
 	}
 
 	/** 게임 위에 반투명 GAME OVER 를 덮는다. kind 는 '다시 하기' 로 돌아갈 화면. */
 	void showGameOver(int score, String kind) {
-		showOverlay(new GameOverOverlay(score, () -> showScreen(kind), () -> showScreen(MENU)));
+		showGameOver(score, 0, kind);
+	}
+
+	/** coins 는 이번 판으로 받은 코인. 0이면 줄을 그리지 않는다. */
+	void showGameOver(int score, int coins, String kind) {
+		showOverlay(new GameOverOverlay(score, coins, () -> showScreen(kind), () -> showScreen(MENU)));
 	}
 
 	/**

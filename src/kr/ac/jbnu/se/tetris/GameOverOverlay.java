@@ -17,6 +17,7 @@ class GameOverOverlay extends DesignPanel {
 	private static final Rectangle CARD = new Rectangle(485, 452, 1029, 519);
 
 	private static final int TITLE_TOP = 541, SCORE_TOP = 689;
+	private static final int COIN_GAP = 56;   // 점수 아래 코인 줄
 	private static final float TITLE_SIZE = 96f, TEXT_SIZE = 36f;
 	private static final double TRACKING = 0.1;
 
@@ -27,12 +28,14 @@ class GameOverOverlay extends DesignPanel {
 	private static final int ARROW_W = 21, ARROW_H = 39;
 	private static final int ARROW_GAP = 24;     // 화살표와 글자 사이
 
-	private final String scoreText;
+	private final String scoreText, coinText, title;
 	private final Runnable onRetry, onMenu;
 	private int selected = 0;
 
-	GameOverOverlay(int score, Runnable onRetry, Runnable onMenu) {
+	GameOverOverlay(int score, int coins, Runnable onRetry, Runnable onMenu) {
 		this.scoreText = String.format("Score  %06d", score);
+		this.coinText = coins > 0 ? "코인  +" + coins : null;
+		this.title = Wallet.cleared(score) ? "CLEAR!" : "GAME OVER";
 		this.onRetry = onRetry;
 		this.onMenu = onMenu;
 		setOpaque(false);   // 뒤 게임 화면이 비쳐야 한다
@@ -65,8 +68,10 @@ class GameOverOverlay extends DesignPanel {
 		g.fillRect(0, 0, getWidth(), getHeight());
 
 		fill(g, CARD, Ui.CREAM);
-		centeredOnCard(g, "GAME OVER", TITLE_TOP, TITLE_SIZE, Color.BLACK);
+		centeredOnCard(g, title, TITLE_TOP, TITLE_SIZE, Color.BLACK);
 		centeredOnCard(g, scoreText, SCORE_TOP, TEXT_SIZE, Color.BLACK);
+		if (coinText != null)
+			centeredOnCard(g, coinText, SCORE_TOP + COIN_GAP, TEXT_SIZE, Color.BLACK);
 
 		drawButton(g, button(0), "다시 하기", selected == 0);
 		drawButton(g, button(1), "메인으로", selected == 1);
