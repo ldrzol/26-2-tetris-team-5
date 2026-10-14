@@ -187,6 +187,7 @@ class FadeBlocks implements GimmickEffect {
     private static final int FADE_LIFE_SECONDS = 15;
 
     @Override public String name() { return "FADE"; }
+    @Override public String icon() { return "images/items/gim_fade.png"; }
 
     @Override
     public void onSecond(GameBoard game) {
@@ -233,12 +234,14 @@ class InvisiblePiece implements GimmickEffect {
     private static final long VISIBLE_MS = 1000;
 
     @Override public String name() { return "INVISIBLE"; }
+    @Override public String icon() { return "images/items/gim_invisible.png"; }
     @Override public boolean hidesPiece(GameBoard game) { return game.msSinceSpawn() >= VISIBLE_MS; }
 }
 
 /** 판을 180도 돌리고, 화면과 맞도록 좌↔우 입력을 뒤집는다. (회전 방향은 180도 돌려도 같아서 그대로) */
 class FlipBoard implements GimmickEffect {
     @Override public String name() { return "FLIP 180"; }
+    @Override public String icon() { return "images/items/gim_gravity.png"; }
     @Override public boolean flipsBoard() { return true; }
 
     @Override
