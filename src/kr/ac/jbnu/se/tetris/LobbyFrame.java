@@ -97,18 +97,22 @@ class LobbyFrame extends MenuScreen {
 	}
 
 	private void joinRoom() {
-		String ip = JOptionPane.showInputDialog(this, "방장의 IP를 입력하세요");
-		if (ip == null || ip.trim().isEmpty())
-			return;
-		mode = null;
+        mode = null;
+		frame.showInput("방장의 IP를 입력하세요", "", ip -> {
+			if (ip != null && !ip.trim().isEmpty())
+				connect(ip.trim());
 
+		});
+	}
+
+	private void connect(String ip) {
 		busy = true;
-		status = ip.trim() + " 에 접속하는 중...";
+		status = ip + " 에 접속하는 중...";
 		repaint();
 
 		new Thread(() -> {
 			try {
-				connection = PeerConnection.connect(ip.trim(), PORT, this::onMessage);
+				connection = PeerConnection.connect(ip, PORT, this::onMessage);
 				SwingUtilities.invokeLater(() -> onConnected("방에 들어갔습니다"));
 			} catch (IOException e) {
 				SwingUtilities.invokeLater(() -> onFailed("접속 실패: " + e.getMessage()));
@@ -124,6 +128,7 @@ class LobbyFrame extends MenuScreen {
 			status = text + " - 상대 준비를 기다리는 중...";
 		}
 		repaint();
+		frame.showScreen(MainFrame.VERSUS);
 	}
 
 
