@@ -195,7 +195,19 @@ class VersusPanel extends DesignPanel {
 			clock.stop();
 			playerBoard.setPaused(true);
 			rivalBoard.setPaused(true);
-			frame.showGameOver(playerBoard.score(), kind);
+			frame.showResult(resultTitle(), playerBoard.score(), kind);
 		}
+	}
+
+	private String resultTitle() {
+		boolean playerOver = playerBoard.getGame().isGameOver();
+		boolean rivalOver = rivalBoard.getGame().isGameOver();
+		if (playerOver && !rivalOver)
+			return "YOU LOSE";
+		if (rivalOver && !playerOver)
+			return "YOU WIN";
+		int mine = playerBoard.score();
+		int theirs = rivalBoard.score();
+		return mine > theirs ? "YOU WIN" : mine < theirs ? "YOU LOSE" : "DRAW";
 	}
 }
