@@ -80,7 +80,7 @@ class VersusPanel extends DesignPanel {
 		playerBoard.start();
 		rivalBoard.start();
 		if (aiRival)
-			new AIplayer(rivalBoard).start();
+			new AIplayer(rivalBoard, frame.aiLevel()).start();
 
 		clock.start();
 	}

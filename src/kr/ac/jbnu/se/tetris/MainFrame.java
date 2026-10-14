@@ -6,6 +6,7 @@ import javax.swing.JFrame;
 import javax.swing.JLayeredPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import kr.ac.jbnu.se.tetris.ai.AIplayer;
 
 /** 프로그램의 유일한 창. 모든 화면을 CardLayout 으로 갈아 끼운다. */
 public class MainFrame extends JFrame {
@@ -23,7 +24,12 @@ public class MainFrame extends JFrame {
 	private final JPanel root = new JPanel(cards);
 	private JPanel current;
 	private JPanel overlay;
+	static final String AI_LEVEL = "ailevel";
+	private AIplayer.Level aiLevel = AIplayer.Level.NORMAL;
 
+	AIplayer.Level aiLevel() {
+		return aiLevel;
+	}
 	public MainFrame() {
 		root.setBackground(Ui.BG);
 		add(root);
@@ -61,7 +67,14 @@ public class MainFrame extends JFrame {
 			case MULTI:
 				return new MenuScreen(new String[] { "멀티 모드" }, new float[] { 128f }, 252,
 						new String[] { "2인 대전", "AI 대전" },
-						i -> showScreen(i == 0 ? LOBBY : PRACTICE));
+						i -> showScreen(i == 0 ? LOBBY : AI_LEVEL));
+			case AI_LEVEL:
+				return new MenuScreen(new String[] { "AI 대전" }, new float[] { 128f }, 252,
+						new String[] { "쉬움", "보통", "어려움" },
+						i -> {
+							aiLevel = AIplayer.Level.values()[i];
+							showScreen(PRACTICE);
+						});
 			case LOBBY:
 				return new LobbyFrame(this);
 			case RANKING:
