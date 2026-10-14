@@ -6,7 +6,6 @@ import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.Timer;
 
 /** 1인 모드 화면. Figma "Desktop - 6". */
@@ -25,6 +24,17 @@ class SinglePanel extends DesignPanel {
 	private static final Rectangle SCORE_BOX = new Rectangle(1367, 653, 322, 100);
 	private static final Rectangle TIME_TAB = new Rectangle(1367, 808, 190, 62);
 	private static final Rectangle TIME_BOX = new Rectangle(1367, 870, 322, 100);
+	// Level/Gimmick 이 왼쪽을 쓰므로 아이템 칸은 Time 아래(오른쪽)에 둔다
+	private static final Rectangle ITEM_TAB = new Rectangle(1367, 1040, 190, 62);
+	private static final Rectangle ITEM_BOX = new Rectangle(1367, 1102, 322, 200);
+
+	/** 아이템 줄 (상자 안쪽 기준 오프셋) */
+	private static final int ITEM_X = 24, ITEM_TOP = 30, ITEM_GAP = 86;
+	private static final float ITEM_SIZE = 36f;
+
+	/** 아이템 안내문 자리 */
+	private static final int NOTICE_TOP = 1360;
+	private static final float NOTICE_SIZE = 36f;
 
 	// 왼쪽 아래: Score/Time 과 같은 높이에 Level, 그 아래에 켜진 기믹 목록
 	private static final Rectangle LEVEL_TAB = new Rectangle(311, 591, 190, 62);
@@ -44,6 +54,7 @@ class SinglePanel extends DesignPanel {
 
 	private final MainFrame frame;
 	private final Board board;
+	private String notice = "";
 	private String timeText = "05:00";
 	private int remain = TIME_LIMIT;
 
@@ -61,10 +72,25 @@ class SinglePanel extends DesignPanel {
 		GameKeys.bind(this, 0, board);     // 설정한 조작키 (+ X, Shift 보조 키)
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
 		Ui.bind(this, KeyEvent.VK_P, "pause2", this::pause);
+		// 1 / 2 키로 가방에 있는 아이템을 쓴다
+		for (int i = 0; i < Item.values().length; i++) {
+			Item item = Item.values()[i];
+			Ui.bind(this, KeyEvent.VK_1 + i, "item" + i, () -> use(item));
+		}
 		onGear(this::pause);
 
 		board.start();
 		clock.start();
+	}
+
+	/** 아이템을 쓰고 결과를 안내문에 적는다. */
+	private void use(Item item) {
+		say(board.useItem(item) ? item.label + " 사용!" : item.label + " 이(가) 없습니다");
+	}
+
+	private void say(String message) {
+		notice = message;
+		repaint();
 	}
 
 	/** 톱니(또는 Esc)를 누르면 판을 멈추고 Figma "리플레이 화면" 을 덮는다. */
@@ -83,16 +109,17 @@ class SinglePanel extends DesignPanel {
 	}
 
 	/**
-	 * 이름을 물어보고 랭킹 파일에 한 줄 남긴다. 취소하면 남기지 않는다.
-	 *
-	 * ponytail: 전용 입력 화면 대신 JOptionPane 을 쓴다. 판마다 한 번 뜨는 창이다.
+	 * 이름을 물어보고 랭킹에 한 줄 남긴 뒤 GAME OVER 를 덮는다. 취소하면 남기지 않는다.
 	 */
-	private void saveRanking() {
-		String name = JOptionPane.showInputDialog(this, "랭킹에 남길 이름", Settings.playerName);
-		if (name == null)
-			return;
-		Settings.playerName = Ranking.clean(name);
-		Ranking.add(Settings.playerName, board.score());
+	private void finish() {
+		int score = board.score();
+		frame.showInput("랭킹에 남길 이름", Settings.playerName, name -> {
+			if (name != null) {
+				Settings.playerName = Ranking.clean(name);
+				Ranking.add(Settings.playerName, score);
+			}
+			frame.showGameOver(score, Wallet.award(score), MainFrame.SINGLE);
+		});
 	}
 
 	@Override
@@ -105,6 +132,7 @@ class SinglePanel extends DesignPanel {
 		boardFrame(g, boardBounds(BOARD, CELL));
 
 		outline(g, HOLD_BOX);
+		outline(g, ITEM_BOX);
 		outline(g, NEXT_BOX);
 		outline(g, SCORE_BOX);
 		outline(g, TIME_BOX);
@@ -112,6 +140,7 @@ class SinglePanel extends DesignPanel {
 		outline(g, GIMMICK_BOX);
 
 		tab(g, HOLD_TAB, "Hold", TAB_SIZE);
+		tab(g, ITEM_TAB, "Item", TAB_SIZE);
 		tab(g, NEXT_TAB, "Next", TAB_SIZE);
 		tab(g, SCORE_TAB, "Score", TAB_SIZE);
 		tab(g, TIME_TAB, "Time", TAB_SIZE);
@@ -128,9 +157,23 @@ class SinglePanel extends DesignPanel {
 		valueRight(g, LEVEL_BOX, String.valueOf(game.getLevel()), VALUE_SIZE, VALUE_PAD);
 		nameList(g, GIMMICK_BOX, game.getGimmick().activeNameList(), GIMMICK_SIZE, GIMMICK_GAP);
 
+		items(g);
+		textCentered(g, notice, NOTICE_TOP, NOTICE_SIZE, Ui.CREAM, 0);
+
 		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
 
 		gear(g);
+	}
+
+	/** 가방에 든 아이템과 누르는 키를 적는다. */
+	private void items(Graphics2D g) {
+		for (int i = 0; i < Item.values().length; i++) {
+			Item item = Item.values()[i];
+			int count = Wallet.count(item);
+			text(g, (i + 1) + "  " + item.label + "  x" + count,
+					ITEM_BOX.x + ITEM_X, ITEM_BOX.y + ITEM_TOP + i * ITEM_GAP, ITEM_SIZE,
+					count > 0 ? Ui.CREAM : DIM_CREAM);
+		}
 	}
 
 	private void tick() {
@@ -141,8 +184,7 @@ class SinglePanel extends DesignPanel {
 		if (remain <= 0 || board.getGame().isGameOver()) {
 			clock.stop();
 			board.setPaused(true);
-			saveRanking();
-			frame.showGameOver(board.score(), MainFrame.SINGLE);
+			finish();
 		}
 	}
 }
