@@ -113,6 +113,11 @@ public class MainFrame extends JFrame {
 		showOverlay(new GameOverOverlay(score, coins, () -> showScreen(kind), () -> showScreen(MENU)));
 	}
 
+	/** 대전 결과. title 은 YOU WIN / YOU LOSE / DRAW. */
+	void showResult(String title, int score, String kind) {
+		showOverlay(new GameOverOverlay(title, score, 0, () -> showScreen(kind), () -> showScreen(MENU)));
+	}
+
 	/**
 	 * 게임 중 톱니를 눌렀을 때. Figma "리플레이 화면".
 	 *
