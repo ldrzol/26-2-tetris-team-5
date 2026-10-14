@@ -1,7 +1,6 @@
 package kr.ac.jbnu.se.tetris;
 
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 
@@ -14,12 +13,14 @@ import javax.swing.KeyStroke;
 import javax.swing.Timer;
 
 public class SharedLocalFrame extends JFrame {
+
+    /** 블록이 한 칸 내려오는 간격. */
+    private static final int FALL_MS = 400;
     private final SharedGame game = new SharedGame();
     private final SharedBoardView view = new SharedBoardView();
     private final JLabel scoreLabel = new JLabel(" ", JLabel.CENTER);
 
     public SharedLocalFrame() {
-        view.setPreferredSize(new Dimension(280, 440));
         add(scoreLabel, BorderLayout.NORTH);
         add(view, BorderLayout.CENTER);
 
@@ -30,7 +31,7 @@ public class SharedLocalFrame extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         pack();
 
-        new Timer(400, e -> {
+        new Timer(FALL_MS, e -> {
             game.tick();
             refresh();
         }).start();

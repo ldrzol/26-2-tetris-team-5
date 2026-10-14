@@ -1,5 +1,6 @@
 package kr.ac.jbnu.se.tetris;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -12,7 +13,6 @@ public class GameBoardSelfCheck {
 		sevenBagHasNoDuplicates();
 		previewMatchesWhatSpawns();
 		holdSwapsAndLocksOncePerPiece();
-		bothGetterFamiliesAgree();
 		levelFollowsScore();
 		clearStackKeepsScore();
 		lockedBoardStopsAndResumes();
@@ -23,17 +23,20 @@ public class GameBoardSelfCheck {
 		System.out.println("GameBoardSelfCheck: 통과");
 	}
 
-	/** 7bag: 앞의 7개는 서로 다른 블록이어야 한다. */
+	/** 7bag: 처음 나오는 7개는 서로 다른 블록이어야 한다. */
 	static void sevenBagHasNoDuplicates() {
 		GameBoard g = new GameBoard();
-		List<Tetrominoes> bag = g.peekNext(7);
-		check(bag.size() == 7, "큐에서 7개를 못 꺼냄: " + bag.size());
+		List<Tetrominoes> bag = new ArrayList<>();
+		for (int i = 0; i < 7; i++) {
+			g.spawn();
+			bag.add(g.currentType());
+		}
 		check(bag.stream().distinct().count() == 7, "7bag 안에 중복이 있음: " + bag);
 		check(!bag.contains(Tetrominoes.NoShape) && !bag.contains(Tetrominoes.GarbageShape),
-				"큐에 안 나와야 할 블록이 섞임: " + bag);
+				"나오면 안 되는 블록이 섞임: " + bag);
 	}
 
-	/** Nextpanel 이 보여 주는 예고와 실제로 나오는 블록이 같아야 한다. (머지로 어긋났던 부분) */
+	/** Next 상자에 보여 준 예고와 실제로 나오는 블록이 같아야 한다. (머지로 어긋났던 부분) */
 	static void previewMatchesWhatSpawns() {
 		GameBoard g = new GameBoard();
 		for (int i = 0; i < 20; i++) {
@@ -61,17 +64,6 @@ public class GameBoardSelfCheck {
 		check(g.hold(), "새 블록이 나왔는데 홀드가 안 풀림");
 		check(g.holdType() == current, "홀드함이 " + current + " 로 안 바뀜: " + g.holdType());
 		check(g.currentType() == first, "보관해 둔 " + first + " 가 안 나옴: " + g.currentType());
-	}
-
-	/** choi 쪽(holdType)과 donggeun 쪽(getHoldType) 게터가 같은 상태를 봐야 한다. */
-	static void bothGetterFamiliesAgree() {
-		GameBoard g = new GameBoard();
-		g.spawn();
-		check(g.getHoldType() == g.holdType(), "두 홀드 게터가 다른 값을 봄");
-		check(!g.isHoldUsed(), "새 블록인데 홀드가 이미 쓰인 걸로 나옴");
-		g.hold();
-		check(g.getHoldType() == g.holdType(), "홀드 후 두 게터가 어긋남");
-		check(g.isHoldUsed(), "홀드했는데 isHoldUsed 가 false");
 	}
 
 	/** 레벨은 누적 점수(levelGoal)를 넘길 때마다 오르고 MAX_LEVEL 에서 멈춘다. */

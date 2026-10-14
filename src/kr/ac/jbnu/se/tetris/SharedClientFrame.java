@@ -1,7 +1,6 @@
 package kr.ac.jbnu.se.tetris;
 
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 
@@ -22,21 +21,28 @@ public class SharedClientFrame extends JFrame {
     private final JLabel scoreLabel = new JLabel(" ", JLabel.CENTER);
     private final PeerConnection connection;
     private final int fee;
+    private final Runnable onExit;
     private boolean settled = false;
 
-    public SharedClientFrame(PeerConnection connection, int fee) {
+    public SharedClientFrame(PeerConnection connection, int fee, Runnable onExit) {
         this.connection = connection;
         this.fee = fee;
-
-        view.setPreferredSize(new Dimension(280, 440));
+        this.onExit = onExit;
         add(scoreLabel, BorderLayout.NORTH);
         add(view, BorderLayout.CENTER);
 
         setupKeys();
-        connection.setListener(message -> onMessage(message));
+        connection.setListener(this::onMessage);
 
         setTitle("땅따먹기 - 상대 (내 블록: 검은 테두리)");
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosed(java.awt.event.WindowEvent e) {
+                connection.close();
+                onExit.run();
+            }
+        });
         pack();
     }
 
@@ -50,7 +56,7 @@ public class SharedClientFrame extends JFrame {
             scoreLabel.setText("나(P2): " + state.getScore(1) + "    상대(P1): " + state.getScore(0));
             if (state.isGameOver() && !settled) {
                 settled = true;
-                ResultPanel.showShared(this, connection, state.getWinner(), 1, fee);
+                ResultPanel.showShared(this, connection, state.getWinner(), 1, fee, onExit);
             }
         });
     }

@@ -1,11 +1,16 @@
 package kr.ac.jbnu.se.tetris;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Graphics;
 
 import javax.swing.JPanel;
 
 public class SharedBoardView extends JPanel {
+
+    /** 칸 하나의 기본 크기(px). 창을 늘리면 그릴 때 실제 크기로 다시 계산한다. */
+    private static final int CELL = 20;
+
     private static final Color[] COLORS = {
             new Color(0, 0, 0), new Color(204, 102, 102), new Color(102, 204, 102),
             new Color(102, 102, 204), new Color(204, 204, 102), new Color(204, 102, 204),
@@ -13,6 +18,10 @@ public class SharedBoardView extends JPanel {
     };
 
     private SharedState state;
+
+    public SharedBoardView() {
+        setPreferredSize(new Dimension(SharedGame.WIDTH * CELL, SharedGame.HEIGHT * CELL));
+    }
 
     public void setState(SharedState state) {
         this.state = state;

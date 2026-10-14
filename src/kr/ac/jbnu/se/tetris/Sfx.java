@@ -13,8 +13,8 @@ import javax.sound.sampled.FloatControl;
  *
  * 소리 장치가 없는 컴퓨터에서도 게임이 돌아가야 하므로, 실패하면 조용히 꺼진다.
  *
- * ponytail: 합성이라 자산 파일이 0개다. 진짜 음원을 쓰려면 Sound 에 파일 이름을 하나
- * 더 달고 load() 에서 AudioSystem.getAudioInputStream(resource) 로 바꾸면 된다. (wav 만 된다)
+ * 진짜 음원으로 바꾸려면 Sound 에 파일 이름을 달고 load() 에서
+ * AudioSystem.getAudioInputStream(resource) 를 쓴다. (wav 만 된다)
  */
 final class Sfx {
 

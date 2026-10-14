@@ -8,7 +8,7 @@ package kr.ac.jbnu.se.tetris;
  */
 public enum Attack {
 
-	// ── 방해 아이템 (상대에게) ──────────────────────────────────────────────
+	// 방해 아이템 (상대에게)
 	BOMB("폭탄", "atk_bomb", false),
 	TINY("1X1 폭탄", "atk_tiny", false),
 	INK("먹물", "atk_ink", false),
@@ -18,11 +18,11 @@ public enum Attack {
 	TWIN("블록 2개", "atk_twin", false),
 	SWAP("블록 교환", "atk_swap", false),
 
-	// ── 내게 거는 아이템 ────────────────────────────────────────────────────
+	// 내게 거는 아이템
 	SCORE_X2("점수 2배", "atk_double", true),
 	REST("한숨 돌리기", "atk_nopiece", true),
 
-	// ── 기믹 아이템 (상대에게) ──────────────────────────────────────────────
+	// 기믹 아이템 (상대에게)
 	RANDOM_KEYS("랜덤 방향키", "gim_randomkey", false),
 	SPIN("회전 고정", "gim_rotfix", false),
 	FADE("소멸 블록", "gim_fade", false),

@@ -29,8 +29,7 @@ final class Wallet {
 	private Wallet() {
 	}
 
-	// ── 조회 ────────────────────────────────────────────────────────────────
-
+	// 조회
 	static int coins() {
 		return coins;
 	}
@@ -52,8 +51,7 @@ final class Wallet {
 		return bag[item.ordinal()];
 	}
 
-	// ── 상점 ────────────────────────────────────────────────────────────────
-
+	// 상점
 	/** 스킨 구매. 코인이 모자라면 false. 산 스킨은 바로 장착한다. */
 	static boolean buy(Skin s) {
 		if (owned.contains(s) || coins < s.price)
@@ -77,8 +75,8 @@ final class Wallet {
 	/**
 	 * 상자를 사서 바로 연다. 나온 아이템을 가방에 넣고 돌려준다. 코인이 모자라면 null.
 	 *
-	 * ponytail: 안 연 상자를 들고 다니는 상태는 만들지 않는다. 열어 두는 연출이 필요하면
-	 * 상자 개수도 가방에 넣고 ShopScreen 에 '열기' 줄을 하나 늘리면 된다.
+	 * 안 연 상자를 들고 다니는 상태는 두지 않는다. 상자를 모았다가 여는 연출이 필요하면
+	 * 상자 개수도 가방에 넣고 ShopScreen 에 '열기' 줄을 늘려야 한다.
 	 */
 	static Item buy(Box box) {
 		if (coins < box.price)
@@ -102,15 +100,30 @@ final class Wallet {
 		save();
 		return true;
 	}
-	/** 코인을 더하거나 뺀다(음수). 2인 대전 참가비 정산에 쓴다. 0 아래로는 내려가지 않는다. */
+	/**
+	 * 땅따먹기 참가비 정산. 결과 문구를 돌려준다.
+	 * winner: 0=P1, 1=P2, -1=무승부. me: 나는 P1(0) 또는 P2(1).
+	 */
+	static String settle(int winner, int me, int fee) {
+		if (winner == -1) {
+			addCoins(fee);
+			return "무승부 - 참가비를 돌려받았습니다";
+		}
+		if (winner == me) {
+			addCoins(fee * 2);
+			return "승리! 참가비 " + fee + " 코인을 받았습니다";
+		}
+		return "패배 - 참가비 " + fee + " 코인을 잃었습니다";
+	}
+
+	/** 코인을 더하거나 뺀다(음수). 참가비 정산에 쓴다. 0 아래로는 내려가지 않는다. */
 	static void addCoins(int amount) {
 		coins = Math.max(0, coins + amount);
 		save();
 	}
 
 
-	// ── 보상 ────────────────────────────────────────────────────────────────
-
+	// 보상
 	/** 레벨 하나를 깰 때마다 주는 코인. */
 	static final int COIN_PER_LEVEL = 100;
 
@@ -164,8 +177,7 @@ final class Wallet {
 		return got;
 	}
 
-	// ── 저장 ────────────────────────────────────────────────────────────────
-
+	// 저장
 	private static void save() {
 		PREFS.putInt("coins", coins);
 		PREFS.put("skin", skin.name());

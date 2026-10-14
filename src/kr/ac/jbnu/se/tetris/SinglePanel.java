@@ -1,6 +1,5 @@
 package kr.ac.jbnu.se.tetris;
 
-import java.awt.BasicStroke;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
@@ -13,7 +12,7 @@ class SinglePanel extends DesignPanel {
 
 	private static final int TIME_LIMIT = 300;   // 5분
 
-	// ── Figma "Desktop - 6" 수치 (디자인 기준 픽셀) ─────────────────────────
+	// Figma "Desktop - 6" 수치 (디자인 기준 픽셀)
 	private static final Rectangle BOARD = new Rectangle(700, 144, 600, 1200);
 
 	private static final Rectangle HOLD_TAB = new Rectangle(311, 147, 186, 62);
@@ -61,7 +60,7 @@ class SinglePanel extends DesignPanel {
 	private String timeText = "05:00";
 	private int remain = TIME_LIMIT;
 
-	// ponytail: 점수·시계를 1초마다 폴링한다. 보드가 이벤트를 안 쏘니 이게 제일 짧다.
+	// 보드가 바뀔 때 알려 주지 않아서, 1초마다 점수와 남은 시간을 읽어 간다.
 	private final Timer clock = new Timer(1000, e -> tick());
 
 	SinglePanel(MainFrame frame) {

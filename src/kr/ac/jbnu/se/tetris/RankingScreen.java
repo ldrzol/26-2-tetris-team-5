@@ -14,14 +14,14 @@ import java.util.List;
  * 메인에서 1인 모드를 고르면 먼저 이 화면이 뜨고, 시작하기를 눌러야 게임이 시작된다.
  * 표는 Ranking 이 저장해 둔 기록을 점수 순으로 보여 준다.
  *
- * ponytail: 기록에 없는 칸(걸린 시간)은 "--:--" 로 둔다. 시간까지 남기려면
- * Ranking.Entry 에 한 칸 늘리고 SinglePanel 에서 넘기면 된다.
+ * 걸린 시간은 Ranking.Entry 에 없어서 "--:--" 로 둔다. 시간까지 남기려면 Entry 에
+ * 칸을 늘리고 SinglePanel 에서 넘겨야 한다.
  */
 class RankingScreen extends DesignPanel {
 
 	private static final Image COIN_ICON = image("images/coin.png");
 
-	// ── Figma "랭킹 화면" 수치 (디자인 기준 픽셀) ───────────────────────────
+	// Figma "랭킹 화면" 수치 (디자인 기준 픽셀)
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 
 	private static final float TAB_LABEL_SIZE = 36f;   // 랭킹 / 내 기록 탭
@@ -136,8 +136,7 @@ class RankingScreen extends DesignPanel {
 		Sfx.play(Sfx.Sound.COIN);
 	}
 
-	// ── 내 기록 ─────────────────────────────────────────────────────────────
-
+	// 내 기록
 	/** 내 이름으로 남은 가장 좋은 기록의 줄 번호(0 부터). 없으면 -1. */
 	private int myIndex() {
 		for (int i = 0; i < entries.size(); i++)
@@ -165,8 +164,7 @@ class RankingScreen extends DesignPanel {
 		return n;
 	}
 
-	// ── 그리기 ──────────────────────────────────────────────────────────────
-
+	// 그리기
 	@Override
 	void paintDesign(Graphics2D g) {
 		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);

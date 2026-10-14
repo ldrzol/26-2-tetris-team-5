@@ -17,7 +17,7 @@ import javax.swing.SwingUtilities;
  */
 class SettingsScreen extends DesignPanel {
 
-	// ── Figma "환경 설정 화면" 수치 (디자인 기준 픽셀) ──────────────────────
+	// Figma "환경 설정 화면" 수치 (디자인 기준 픽셀)
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 
 	private static final float GROUP_SIZE = 36f;   // 묶음 탭
@@ -114,8 +114,7 @@ class SettingsScreen extends DesignPanel {
 		SwingUtilities.invokeLater(this::requestFocusInWindow);
 	}
 
-	// ── 값 바꾸기 ───────────────────────────────────────────────────────────
-
+	// 값 바꾸기
 	private void setVolume(int volume) {
 		sfx = volume;
 		repaint();
@@ -164,8 +163,7 @@ class SettingsScreen extends DesignPanel {
 		repaint();
 	}
 
-	// ── 자리 ────────────────────────────────────────────────────────────────
-
+	// 자리
 	private Rectangle gaugeCell(int index) {
 		return new Rectangle(GAUGE_X + index * GAUGE_STEP, GAUGE_ROW, GAUGE_W, GAUGE_H);
 	}
@@ -178,8 +176,7 @@ class SettingsScreen extends DesignPanel {
 		return new Rectangle(KEY_COL_X[col], KEY_TOP + row * KEY_STEP, KEY_W, KEY_H);
 	}
 
-	// ── 그리기 ──────────────────────────────────────────────────────────────
-
+	// 그리기
 	@Override
 	void paintDesign(Graphics2D g) {
 		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
