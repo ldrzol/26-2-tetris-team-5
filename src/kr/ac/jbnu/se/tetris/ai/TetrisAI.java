@@ -1,8 +1,8 @@
 package kr.ac.jbnu.se.tetris.ai;
 
-import kr.ac.jbnu.se.tetris.GameBoard;
-import kr.ac.jbnu.se.tetris.Shape;
-import kr.ac.jbnu.se.tetris.Tetrominoes;
+import kr.ac.jbnu.se.tetris.game.GameBoard;
+import kr.ac.jbnu.se.tetris.game.Shape;
+import kr.ac.jbnu.se.tetris.game.Tetrominoes;
 
 public class TetrisAI {
     public Move findBestMove(GameBoard board, Shape piece) {

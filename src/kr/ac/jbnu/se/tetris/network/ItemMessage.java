@@ -1,9 +1,9 @@
 package kr.ac.jbnu.se.tetris.network;
 
-import java.io.Serializable;
+import kr.ac.jbnu.se.tetris.game.Tetrominoes;
+import kr.ac.jbnu.se.tetris.item.Attack;
 
-import kr.ac.jbnu.se.tetris.Attack;
-import kr.ac.jbnu.se.tetris.Tetrominoes;
+import java.io.Serializable;
 
 /** 아이템 한 번 사용. 상대에게 거는 것도, 교환처럼 주고받는 것도 이 메시지로 간다. */
 public class ItemMessage implements Serializable {
