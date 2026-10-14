@@ -39,6 +39,18 @@ class VersusPanel extends DesignPanel {
 	private static final Rectangle HOLD_TAB_2 = new Rectangle(1751, 734, 186, 62);
 	private static final Rectangle HOLD_BOX_2 = new Rectangle(1751, 796, 232, 165);
 
+	// 양쪽 아래: Hold 상자 밑에 Level 과 켜진 기믹 목록
+	private static final Rectangle LEVEL_TAB_1 = new Rectangle(18, 1005, 186, 62);
+	private static final Rectangle LEVEL_BOX_1 = new Rectangle(18, 1067, 232, 90);
+	private static final Rectangle GIMMICK_TAB_1 = new Rectangle(18, 1180, 186, 62);
+	private static final Rectangle GIMMICK_BOX_1 = new Rectangle(18, 1242, 232, 160);
+	private static final Rectangle LEVEL_TAB_2 = new Rectangle(1751, 1005, 186, 62);
+	private static final Rectangle LEVEL_BOX_2 = new Rectangle(1751, 1067, 232, 90);
+	private static final Rectangle GIMMICK_TAB_2 = new Rectangle(1751, 1180, 186, 62);
+	private static final Rectangle GIMMICK_BOX_2 = new Rectangle(1751, 1242, 232, 160);
+	private static final float GIMMICK_SIZE = 30f;
+	private static final int GIMMICK_GAP = 44;
+
 	private static final Rectangle TIME_TAB = new Rectangle(906, 711, 190, 62);
 	private static final Rectangle TIME_BOX = new Rectangle(864, 773, 273, 100);
 
@@ -47,14 +59,13 @@ class VersusPanel extends DesignPanel {
 	private static final int LABEL_TOP = 304, LABEL_HEIGHT = 80;
 	private static final int LABEL_1_X = 84, LABEL_2_X = 1803;
 	private static final float BIG_SIZE = 64f;
+	private static final float GIMMICK_TAB_SIZE = 32f;   // 좁은 탭에 "Gimmick" 이 들어가도록
 
 	private final MainFrame frame;
 	private final String kind;
 	private final Board playerBoard = newBoard();
 	private final Board rivalBoard = newBoard();
 
-	private String score1 = "000000";
-	private String score2 = "000000";
 	private String timeText = "05:00";
 	private int remain = TIME_LIMIT;
 
@@ -67,14 +78,9 @@ class VersusPanel extends DesignPanel {
 		add(playerBoard);
 		add(rivalBoard);
 
-		Ui.bind(this, KeyEvent.VK_LEFT, "left", playerBoard::moveLeft);
-		Ui.bind(this, KeyEvent.VK_RIGHT, "right", playerBoard::moveRight);
-		Ui.bind(this, KeyEvent.VK_UP, "rotate", playerBoard::rotateRight);
-		Ui.bind(this, KeyEvent.VK_DOWN, "soft", playerBoard::softDrop);
-		Ui.bind(this, KeyEvent.VK_SPACE, "hard", playerBoard::hardDrop);
-		Ui.bind(this, KeyEvent.VK_C, "hold", playerBoard::hold);
-		Ui.bind(this, KeyEvent.VK_SHIFT, "hold2", playerBoard::hold);
+		GameKeys.bind(this, 0, playerBoard);   // 설정한 조작키 (+ X, Shift 보조 키)
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
+		Ui.bind(this, KeyEvent.VK_P, "pause2", this::pause);
 		onGear(this::pause);
 
 		playerBoard.start();
@@ -96,6 +102,7 @@ class VersusPanel extends DesignPanel {
 	}
 
 	private void resume() {
+		GameKeys.bind(this, 0, playerBoard);   // 일시정지 중에 설정을 바꿨을 수 있다
 		playerBoard.setPaused(false);
 		rivalBoard.setPaused(false);
 		clock.start();
@@ -126,6 +133,10 @@ class VersusPanel extends DesignPanel {
 		outline(g, NEXT_BOX_2);
 		outline(g, HOLD_BOX_2);
 		outline(g, TIME_BOX);
+		outline(g, LEVEL_BOX_1);
+		outline(g, GIMMICK_BOX_1);
+		outline(g, LEVEL_BOX_2);
+		outline(g, GIMMICK_BOX_2);
 
 		tab(g, SCORE_TAB_1, "Score", TAB_SIZE);
 		tab(g, SCORE_TAB_2, "Score", TAB_SIZE);
@@ -134,13 +145,20 @@ class VersusPanel extends DesignPanel {
 		tab(g, NEXT_TAB_2, "Next", TAB_SIZE);
 		tab(g, HOLD_TAB_2, "Hold", TAB_SIZE);
 		tab(g, TIME_TAB, "Time", TAB_SIZE);
+		tab(g, LEVEL_TAB_1, "Level", TAB_SIZE);
+		tab(g, GIMMICK_TAB_1, "Gimmick", GIMMICK_TAB_SIZE);
+		tab(g, LEVEL_TAB_2, "Level", TAB_SIZE);
+		tab(g, GIMMICK_TAB_2, "Gimmick", GIMMICK_TAB_SIZE);
 
 		previews(g, playerBoard, NEXT_BOX_1, HOLD_BOX_1);
 		previews(g, rivalBoard, NEXT_BOX_2, HOLD_BOX_2);
 
-		valueRight(g, SCORE_BOX_1, score1, VALUE_SIZE, VALUE_PAD);
-		valueRight(g, SCORE_BOX_2, score2, VALUE_SIZE, VALUE_PAD);
+		// 점수·레벨·기믹은 그릴 때마다 보드에서 바로 읽는다. (1초 시계를 기다리지 않는다)
+		valueRight(g, SCORE_BOX_1, String.format("%06d", playerBoard.score()), VALUE_SIZE, VALUE_PAD);
+		valueRight(g, SCORE_BOX_2, String.format("%06d", rivalBoard.score()), VALUE_SIZE, VALUE_PAD);
 		valueCentered(g, TIME_BOX, timeText, VALUE_SIZE);
+		sideInfo(g, playerBoard, LEVEL_BOX_1, GIMMICK_BOX_1);
+		sideInfo(g, rivalBoard, LEVEL_BOX_2, GIMMICK_BOX_2);
 
 		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
 		textCenteredIn(g, "VS", VS_TOP, VS_HEIGHT, BIG_SIZE, Color.WHITE);
@@ -154,6 +172,13 @@ class VersusPanel extends DesignPanel {
 		gear(g);
 	}
 
+	/** 한쪽 보드의 레벨과 켜진 기믹. */
+	private void sideInfo(Graphics2D g, Board board, Rectangle levelBox, Rectangle gimmickBox) {
+		GameBoard game = board.getGame();
+		valueRight(g, levelBox, String.valueOf(game.getLevel()), VALUE_SIZE, VALUE_PAD);
+		nameList(g, gimmickBox, game.getGimmick().activeNameList(), GIMMICK_SIZE, GIMMICK_GAP);
+	}
+
 	private void previews(Graphics2D g, Board board, Rectangle nextBox, Rectangle holdBox) {
 		GameBoard game = board.getGame();
 		preview(g, nextBox, game.nextType(), game.getNextColor());
@@ -163,8 +188,6 @@ class VersusPanel extends DesignPanel {
 	private void tick() {
 		remain--;
 		timeText = mmss(remain);
-		score1 = String.format("%06d", playerBoard.score());
-		score2 = String.format("%06d", rivalBoard.score());
 		repaint();
 
 		if (remain <= 0 || playerBoard.getGame().isGameOver() || rivalBoard.getGame().isGameOver()) {
