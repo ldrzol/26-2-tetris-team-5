@@ -52,6 +52,13 @@ abstract class DesignPanel extends JPanel {
 	static final int VALUE_PAD = 27;
 
 
+	/**
+	 * 불러온 그림을 경로별로 기억해 둔다. 그리는 중에 부르므로 매번 읽으면 안 된다.
+	 *
+	 * 아래 아이콘들이 이 표를 쓰면서 만들어지므로, 반드시 그보다 먼저 선언해야 한다.
+	 */
+	private static final Map<String, Image> IMAGE_CACHE = new HashMap<>();
+
 	static final Image GEAR_ICON = image("images/gear.png");
 	static final Image ARROW_ICON = image("images/arrow.png");
 
@@ -63,9 +70,15 @@ abstract class DesignPanel extends JPanel {
 		setBackground(Ui.BG);
 	}
 
+	/** 없는 경로면 null 을 돌려준다. (drawImage 가 null 을 그냥 건너뛴다) */
 	static Image image(String path) {
-		URL url = DesignPanel.class.getResource(path);
-		return url == null ? null : new ImageIcon(url).getImage();
+		if (path == null)
+			return null;
+		if (!IMAGE_CACHE.containsKey(path)) {   // 못 찾은 경로도 기억해서 다시 찾지 않는다
+			URL url = DesignPanel.class.getResource(path);
+			IMAGE_CACHE.put(path, url == null ? null : new ImageIcon(url).getImage());
+		}
+		return IMAGE_CACHE.get(path);
 	}
 
 	// ── 좌표 변환 ───────────────────────────────────────────────────────────
@@ -133,6 +146,21 @@ abstract class DesignPanel extends JPanel {
 	void drawImage(Graphics2D g, Image img, Rectangle r) {
 		if (img != null)
 			g.drawImage(img, px(r.x), py(r.y), sz(r.width), sz(r.height), this);
+	}
+
+	/**
+	 * 켜져 있는 기믹을 아이콘 한 줄로 그린다. 그림이 없는 기믹은 자리를 비우지 않고 건너뛴다.
+	 *
+	 * x, y, size, gap 은 모두 디자인 기준 픽셀이다.
+	 */
+	void gimmickIcons(Graphics2D g, Gimmick gimmick, int x, int y, int size, int gap) {
+		for (GimmickEffect effect : gimmick.activeEffects()) {
+			Image img = image(effect.icon());
+			if (img == null)
+				continue;
+			drawImage(g, img, new Rectangle(x, y, size, size));
+			x += size + gap;
+		}
 	}
 
 	/** 좌우를 뒤집어 그린다. 오른쪽 화살표 그림을 왼쪽(뒤로) 화살표로 쓴다. */

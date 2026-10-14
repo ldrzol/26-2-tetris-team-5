@@ -32,6 +32,9 @@ class SinglePanel extends DesignPanel {
 	private static final int ITEM_X = 24, ITEM_TOP = 30, ITEM_GAP = 86;
 	private static final float ITEM_SIZE = 36f;
 
+	/** 아이템 줄 왼쪽의 그림. 그림이 없는 아이템도 글자 자리는 같아야 해서 칸을 늘 비워 둔다. */
+	private static final int ITEM_ICON = 48, ITEM_ICON_DROP = -8, ITEM_TEXT_GAP = 12;
+
 	/** 아이템 안내문 자리 */
 	private static final int NOTICE_TOP = 1360;
 	private static final float NOTICE_SIZE = 36f;
@@ -39,6 +42,11 @@ class SinglePanel extends DesignPanel {
 	// 왼쪽 아래: Score/Time 과 같은 높이에 Level, 그 아래에 켜진 기믹 목록
 	private static final Rectangle LEVEL_TAB = new Rectangle(311, 591, 190, 62);
 	private static final Rectangle LEVEL_BOX = new Rectangle(311, 653, 322, 100);
+
+	/** Level 상자 바로 아래에 켜진 기믹 아이콘을 한 줄로 둔다. (동시에 최대 3개) */
+	private static final int GIMMICK_X = 311, GIMMICK_TOP = 779;
+	private static final int GIMMICK_ICON = 84, GIMMICK_GAP = 14;
+
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 
 	/**
@@ -164,6 +172,7 @@ class SinglePanel extends DesignPanel {
 		valueRight(g, SCORE_BOX, String.format("%06d", board.score()), VALUE_SIZE, VALUE_PAD);
 		valueRight(g, TIME_BOX, timeText, VALUE_SIZE, VALUE_PAD);
 		valueRight(g, LEVEL_BOX, String.valueOf(game.getLevel()), VALUE_SIZE, VALUE_PAD);
+		gimmickIcons(g, game.getGimmick(), GIMMICK_X, GIMMICK_TOP, GIMMICK_ICON, GIMMICK_GAP);
 
 		items(g);
 		textCentered(g, notice, NOTICE_TOP, NOTICE_SIZE, Ui.CREAM, 0);
@@ -173,13 +182,18 @@ class SinglePanel extends DesignPanel {
 		gear(g);
 	}
 
-	/** 가방에 든 아이템과 누르는 키를 적는다. */
+	/** 가방에 든 아이템과 누르는 키를 적는다. 그림이 있는 아이템은 왼쪽에 아이콘도 그린다. */
 	private void items(Graphics2D g) {
 		for (int i = 0; i < Item.values().length; i++) {
 			Item item = Item.values()[i];
 			int count = Wallet.count(item);
+			int x = ITEM_BOX.x + ITEM_X;
+			int top = ITEM_BOX.y + ITEM_TOP + i * ITEM_GAP;
+
+			drawImage(g, image(item.icon),
+					new Rectangle(x, top + ITEM_ICON_DROP, ITEM_ICON, ITEM_ICON));
 			text(g, (i + 1) + "  " + item.label + "  x" + count,
-					ITEM_BOX.x + ITEM_X, ITEM_BOX.y + ITEM_TOP + i * ITEM_GAP, ITEM_SIZE,
+					x + ITEM_ICON + ITEM_TEXT_GAP, top, ITEM_SIZE,
 					count > 0 ? Ui.CREAM : DIM_CREAM);
 		}
 	}

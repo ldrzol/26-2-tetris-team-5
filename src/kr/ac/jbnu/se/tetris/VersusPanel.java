@@ -45,6 +45,9 @@ class VersusPanel extends DesignPanel {
 	private static final Rectangle LEVEL_TAB_2 = new Rectangle(1751, 1005, 186, 62);
 	private static final Rectangle LEVEL_BOX_2 = new Rectangle(1751, 1067, 232, 90);
 
+	/** Level 상자 아래에 켜진 기믹 아이콘을 한 줄로 둔다. (동시에 최대 3개) */
+	private static final int GIMMICK_DROP = 16, GIMMICK_ICON = 64, GIMMICK_GAP = 10;
+
 	private static final Rectangle TIME_TAB = new Rectangle(906, 711, 190, 62);
 	private static final Rectangle TIME_BOX = new Rectangle(864, 773, 273, 100);
 
@@ -162,9 +165,11 @@ class VersusPanel extends DesignPanel {
 		gear(g);
 	}
 
-	/** 한쪽 보드의 레벨. */
+	/** 한쪽 보드의 레벨과, 그 아래에 켜진 기믹 아이콘. */
 	private void sideInfo(Graphics2D g, Board board, Rectangle levelBox) {
 		valueRight(g, levelBox, String.valueOf(board.getGame().getLevel()), VALUE_SIZE, VALUE_PAD);
+		gimmickIcons(g, board.getGame().getGimmick(),
+				levelBox.x, levelBox.y + levelBox.height + GIMMICK_DROP, GIMMICK_ICON, GIMMICK_GAP);
 	}
 
 	private void previews(Graphics2D g, Board board, Rectangle nextBox, Rectangle holdBox) {
