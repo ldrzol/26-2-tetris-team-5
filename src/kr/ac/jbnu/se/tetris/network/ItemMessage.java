@@ -6,9 +6,9 @@ public class ItemMessage implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public enum Effect {
-        PLUS_LINE
+        SPEED_UP, FADE_BLOCKS, NO_ROTATE, REVERSE_KEYS, INVISIBLE, PLUS_LINE,
+        COVER_SCREEN, ERASE_DOT, ERASE_CROSS, ERASE_SQUARE, ERASE_LINE
     }
-
     public final Effect effect;
 
     public ItemMessage(Effect effect) {
