@@ -20,6 +20,7 @@ public class Gimmick {
             new NoRotate(),
             new ReverseKeys(),
             new InvisiblePiece(),
+            new FlipBoard(),
             new PlusLine(),
             new CoverScreen(),
             new EraseDot(),
@@ -87,7 +88,13 @@ public class Gimmick {
     }
 
     public boolean hidesPiece() {
-        for (GimmickEffect e : active) if (e.hidesPiece()) return true;
+        for (GimmickEffect e : active) if (e.hidesPiece(game)) return true;
+        return false;
+    }
+
+    /** true 면 판을 180도 돌려서 그린다. */
+    public boolean flipsBoard() {
+        for (GimmickEffect e : active) if (e.flipsBoard()) return true;
         return false;
     }
 
@@ -104,13 +111,6 @@ public class Gimmick {
         return f;
     }
 
-    /** 켜져 있는 기믹 이름들. (오래된 순) 화면에 한 줄씩 보여 줄 때 쓴다. */
-    public List<String> activeNameList() {
-        List<String> names = new ArrayList<>();
-        for (GimmickEffect e : active) names.add(e.name());
-        return names;
-    }
-
     /** 화면에 현재 기믹 이름을 보여 주고 싶을 때 쓴다. 없으면 빈 문자열. */
     public String activeNames() {
         StringBuilder sb = new StringBuilder();
@@ -120,6 +120,13 @@ public class Gimmick {
         }
         return sb.toString();
     }
+    /** 켜진 기믹 이름 목록 (화면에 한 줄씩 그릴 때 쓴다). */
+    public java.util.List<String> activeNameList() {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (GimmickEffect e : active) names.add(e.name());
+        return names;
+    }
+
 }
 
 // ====================================================================
@@ -145,7 +152,10 @@ interface GimmickEffect {
     default boolean blocksRotation() { return false; }
 
     /** true 면 떨어지는 블록과 고스트가 화면에서 숨겨진다. */
-    default boolean hidesPiece() { return false; }
+    default boolean hidesPiece(GameBoard game) { return false; }
+
+    /** true 면 판이 180도 돌아간다. (화면만 돌고 게임 규칙은 그대로) */
+    default boolean flipsBoard() { return false; }
 
     /** 낙하 간격에 곱해진다. 1.0보다 작을수록 빨라진다. */
     default double speedFactor() { return 1.0; }
@@ -156,7 +166,7 @@ interface GimmickEffect {
 
 /** 낙하 간격을 절반으로 줄인다. */
 class SpeedUp implements GimmickEffect {
-    @Override public String name() { return "속도 증가"; }
+    @Override public String name() { return "SPEED UP"; }
     @Override public double speedFactor() { return 0.5; }
 }
 
@@ -165,7 +175,7 @@ class FadeBlocks implements GimmickEffect {
 
     private static final int FADE_LIFE_SECONDS = 15;
 
-    @Override public String name() { return "블록 사라짐"; }
+    @Override public String name() { return "FADE"; }
 
     @Override
     public void onSecond(GameBoard game) {
@@ -186,13 +196,13 @@ class FadeBlocks implements GimmickEffect {
 
 /** 회전을 막는다. */
 class NoRotate implements GimmickEffect {
-    @Override public String name() { return "회전 불가"; }
+    @Override public String name() { return "NO ROTATE"; }
     @Override public boolean blocksRotation() { return true; }
 }
 
 /** 좌↔우, 반시계↔시계 회전 입력을 서로 바꾼다. */
 class ReverseKeys implements GimmickEffect {
-    @Override public String name() { return "키 반전"; }
+    @Override public String name() { return "REVERSE KEYS"; }
 
     @Override
     public Gimmick.Input remap(Gimmick.Input in) {
@@ -206,10 +216,27 @@ class ReverseKeys implements GimmickEffect {
     }
 }
 
-/** 떨어지는 블록과 고스트를 숨긴다. */
+/** 떨어지는 블록과 고스트를 숨긴다. 단, 블록이 나온 첫 1초 동안은 보인다. */
 class InvisiblePiece implements GimmickEffect {
-    @Override public String name() { return "투명 블록"; }
-    @Override public boolean hidesPiece() { return true; }
+    private static final long VISIBLE_MS = 1000;
+
+    @Override public String name() { return "INVISIBLE"; }
+    @Override public boolean hidesPiece(GameBoard game) { return game.msSinceSpawn() >= VISIBLE_MS; }
+}
+
+/** 판을 180도 돌리고, 화면과 맞도록 좌↔우 입력을 뒤집는다. (회전 방향은 180도 돌려도 같아서 그대로) */
+class FlipBoard implements GimmickEffect {
+    @Override public String name() { return "FLIP 180"; }
+    @Override public boolean flipsBoard() { return true; }
+
+    @Override
+    public Gimmick.Input remap(Gimmick.Input in) {
+        switch (in) {
+            case LEFT:  return Gimmick.Input.RIGHT;
+            case RIGHT: return Gimmick.Input.LEFT;
+            default:    return in;
+        }
+    }
 }
 
 /** 켜지는 순간 맨 아래에 구멍 하나 뚫린 쓰레기 줄을 한 번 끼워 넣는다. */
@@ -217,7 +244,7 @@ class PlusLine implements GimmickEffect {
 
     private final Random rand = new Random();
 
-    @Override public String name() { return "줄 추가"; }
+    @Override public String name() { return "PLUS LINE"; }
 
     @Override
     public void onActivate(GameBoard game) {
@@ -234,7 +261,7 @@ class PlusLine implements GimmickEffect {
 class CoverScreen implements GimmickEffect {
     private int sec = 0;
 
-    @Override public String name() { return "화면 가림"; }
+    @Override public String name() { return "COVER"; }
     @Override public void onActivate(GameBoard game) { sec = 0; }
     @Override public void onSecond(GameBoard game) { sec++; }
     @Override public double coverRatio() { return (sec % 5) < 3 ? 0.5 : 0; }
@@ -264,13 +291,13 @@ abstract class EraseShape implements GimmickEffect {
 
 /** 1x1 : 한 칸만 지운다. */
 class EraseDot extends EraseShape {
-    @Override public String name() { return "1칸 삭제"; }
+    @Override public String name() { return "ERASE 1x1"; }
     @Override int[][] offsets() { return new int[][] { { 0, 0 } }; }
 }
 
 /** 십자가 : 중심과 상하좌우 한 칸씩. */
 class EraseCross extends EraseShape {
-    @Override public String name() { return "십자 삭제"; }
+    @Override public String name() { return "ERASE CROSS"; }
     @Override int[][] offsets() {
         return new int[][] { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
     }
@@ -278,7 +305,7 @@ class EraseCross extends EraseShape {
 
 /** 정사각형 : 중심 주변 3x3. */
 class EraseSquare extends EraseShape {
-    @Override public String name() { return "사각 삭제"; }
+    @Override public String name() { return "ERASE SQUARE"; }
     @Override int[][] offsets() {
         int[][] o = new int[9][];
         int n = 0;
@@ -292,7 +319,7 @@ class EraseSquare extends EraseShape {
 /** 일자 : 4칸을 가로 또는 세로로 무작위로 지운다. */
 class EraseLine extends EraseShape {
     private final Random rand = new Random();
-    @Override public String name() { return "일자 삭제"; }
+    @Override public String name() { return "ERASE LINE"; }
     @Override int[][] offsets() {
         boolean horizontal = rand.nextBoolean();
         int[][] o = new int[4][];

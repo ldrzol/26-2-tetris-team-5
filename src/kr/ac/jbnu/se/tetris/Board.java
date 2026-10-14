@@ -40,6 +40,11 @@ public class Board extends JPanel implements ActionListener {
 	// [기믹] 1초마다 기믹(블록 사라짐 등)을 갱신하는 타이머
 	private final Timer gimmickTimer = new Timer(1000, e -> onGimmickSecond());
 
+	// [기믹] INVISIBLE 이 첫 1초 뒤 정확히 사라지도록 짧은 간격으로 다시 그린다
+	private final Timer visibilityTimer = new Timer(100, e -> {
+		if (isStarted && !isPaused) repaint();
+	});
+
 	private final LineClearEffect flash;             // [flash] 줄 삭제 깜빡임 효과
 
 	/** 레벨이 올랐을 때 알릴 곳. (화면이 '레벨 클리어' 덮개를 띄운다) */
@@ -102,6 +107,7 @@ public class Board extends JPanel implements ActionListener {
 		game.spawn();
 		timer.start();
 		gimmickTimer.restart();      // [기믹]
+		visibilityTimer.restart();
 		afterAction();
 	}
 
@@ -202,6 +208,7 @@ public class Board extends JPanel implements ActionListener {
 		if (game.isGameOver()) {
 			timer.stop();
 			gimmickTimer.stop();     // [기믹]
+			visibilityTimer.stop();
 			flash.stop();            // [flash]
 			clearLockState();
 			isStarted = false;
@@ -318,11 +325,18 @@ public class Board extends JPanel implements ActionListener {
 
 	/** 화면 그리기. 쌓인 블록 -> 고스트 -> 현재 떨어지는 블록 순서로 그린다. */
 	@Override
-	protected void paintComponent(Graphics g) {
-		super.paintComponent(g);
+	protected void paintComponent(Graphics g0) {
+		super.paintComponent(g0);
 
 		Dimension size = getSize();
 		int boardTop = (int) size.getHeight() - GameBoard.VISIBLE_HEIGHT * squareHeight();
+
+		// [기믹] FLIP: 판 영역의 중심을 기준으로 180도 돌려서 그린다
+		Graphics2D g = (Graphics2D) g0.create();
+		if (game.getGimmick().flipsBoard()) {
+			g.rotate(Math.PI, GameBoard.WIDTH * squareWidth() / 2.0,
+					boardTop + GameBoard.VISIBLE_HEIGHT * squareHeight() / 2.0);
+		}
 
 		drawGrid(g, boardTop);
 
@@ -363,6 +377,7 @@ public class Board extends JPanel implements ActionListener {
 			g.fillRect(0, boardTop + GameBoard.VISIBLE_HEIGHT * squareHeight() - h, getWidth(), h);
 		}
 		flash.draw(g, boardTop, squareWidth(), squareHeight());   // [flash]
+		g.dispose();
 	}
 
 	private static final Color GARBAGE_COLOR = new Color(153, 153, 153);

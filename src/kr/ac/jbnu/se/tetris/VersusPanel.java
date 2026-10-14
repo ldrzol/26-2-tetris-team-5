@@ -79,7 +79,7 @@ class VersusPanel extends DesignPanel {
 		playerBoard.start();
 		rivalBoard.start();
 		if (aiRival)
-			new AIplayer(rivalBoard).start();
+			new AIplayer(rivalBoard, frame.aiLevel()).start();
 
 		clock.start();
 	}
@@ -103,6 +103,7 @@ class VersusPanel extends DesignPanel {
 
 	private Board newBoard() {
 		Board b = new Board(new JLabel());   // Board 가 상태바를 요구한다. 화면엔 안 붙인다.
+		b.getGame().setLevelProgression(false);
 		b.setBackground(Ui.BG);
 		b.onRepaint(this::repaint);          // Hold/Next 는 패널이 그리므로 같이 갱신해야 한다
 		return b;
@@ -181,7 +182,19 @@ class VersusPanel extends DesignPanel {
 			clock.stop();
 			playerBoard.setPaused(true);
 			rivalBoard.setPaused(true);
-			frame.showGameOver(playerBoard.score(), kind);
+			frame.showResult(resultTitle(), playerBoard.score(), kind);
 		}
+	}
+
+	private String resultTitle() {
+		boolean playerOver = playerBoard.getGame().isGameOver();
+		boolean rivalOver = rivalBoard.getGame().isGameOver();
+		if (playerOver && !rivalOver)
+			return "YOU LOSE";
+		if (rivalOver && !playerOver)
+			return "YOU WIN";
+		int mine = playerBoard.score();
+		int theirs = rivalBoard.score();
+		return mine > theirs ? "YOU WIN" : mine < theirs ? "YOU LOSE" : "DRAW";
 	}
 }

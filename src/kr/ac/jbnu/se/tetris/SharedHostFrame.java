@@ -23,10 +23,13 @@ public class SharedHostFrame extends JFrame {
     private final SharedBoardView view = new SharedBoardView();
     private final JLabel scoreLabel = new JLabel(" ", JLabel.CENTER);
     private final PeerConnection connection;
+    private final long endTime = System.currentTimeMillis() + 5 * 60 * 1000L;
+    private final int fee;
+    private boolean settled = false;
 
-    public SharedHostFrame(PeerConnection connection) {
+    public SharedHostFrame(PeerConnection connection, int fee) {
         this.connection = connection;
-
+        this.fee = fee;
         view.setPreferredSize(new Dimension(280, 440));
         add(scoreLabel, BorderLayout.NORTH);
         add(view, BorderLayout.CENTER);
@@ -40,6 +43,9 @@ public class SharedHostFrame extends JFrame {
         pack();
 
         new Timer(400, e -> {
+            if (System.currentTimeMillis() >= endTime) {
+                game.end();
+            }
             game.tick();
             refresh();
         }).start();
@@ -47,7 +53,13 @@ public class SharedHostFrame extends JFrame {
 
     private void refresh() {
         view.setState(game);
-        scoreLabel.setText("나(P1): " + game.getScore(0) + "    상대(P2): " + game.getScore(1));
+        if (game.isGameOver() && !settled) {
+            settled = true;
+            ResultPanel.showShared(this, connection, game.getWinner(), 0, fee);
+        }
+        long left = Math.max(0, (endTime - System.currentTimeMillis()) / 1000);
+        scoreLabel.setText("남은 시간 " + left / 60 + ":" + String.format("%02d", left % 60)
+                + "  |  나(P1): " + game.getScore(0) + "  상대(P2): " + game.getScore(1));
         connection.send(new SharedStateMessage(game));
     }
 
