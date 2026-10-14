@@ -5,6 +5,7 @@ import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.util.Random;
 
 import javax.swing.AbstractAction;
 import javax.swing.InputMap;
@@ -26,10 +27,14 @@ public class DuelFrame extends JFrame {
     private final JLabel opponentStatus = new JLabel(" 0");
     private final PeerConnection connection;
     private int items = 0;
+    private final Random random = new Random();
     private final int fee;
     private boolean finished = false;
     private final long endTime = System.currentTimeMillis() + 5 * 60 * 1000L;
-    private int opponentLines = 0;
+    private int opponentScore = 0;
+    private static final int FEVER_SCORE = 500;
+    private int nextFeverScore = FEVER_SCORE;
+    private long feverUntil = 0;
 
     public DuelFrame(PeerConnection connection, int fee) {
         this.connection = connection;
@@ -37,6 +42,7 @@ public class DuelFrame extends JFrame {
 
         JLabel myStatus = new JLabel(" 0");
         myBoard = new Board(myStatus);
+        myBoard.getGame().setLevelProgression(false);
         myBoard.setPreferredSize(new Dimension(200, 440));
         opponentView.setPreferredSize(new Dimension(200, 440));
 
@@ -79,18 +85,25 @@ public class DuelFrame extends JFrame {
             finishByTime();
             return;
         }
+        if (myBoard.score() >= nextFeverScore) {
+            nextFeverScore += FEVER_SCORE;
+            addItem();
+            feverUntil = System.currentTimeMillis() + 3000;
+        }
         setTitle("아이템 대전 - 남은 시간 " + left / 60 + ":" + String.format("%02d", left % 60)
-                + " - 아이템 " + itemCount() + "개 (Z 키로 사용)");
+                + " - 점수 " + myBoard.score() + " : " + opponentScore
+                + " - 아이템 " + itemCount() + "개 (Z)"
+                + (System.currentTimeMillis() < feverUntil ? " - 피버! 아이템 +1" : ""));
     }
 
     private void finishByTime() {
         finished = true;
         myBoard.setPaused(true);
-        int mine = myBoard.getGame().getLinesRemoved();
-        if (mine > opponentLines) {
+        int mine = myBoard.score();
+        if (mine > opponentScore) {
             Coins.add(fee * 2);
             setTitle("시간 종료 - 승리! 참가비 " + fee + " 코인을 받았습니다");
-        } else if (mine == opponentLines) {
+        } else if (mine == opponentScore) {
             Coins.add(fee);
             setTitle("시간 종료 - 무승부, 참가비를 돌려받았습니다");
         } else {
@@ -107,9 +120,10 @@ public class DuelFrame extends JFrame {
     }
 
     private void useItem() {
-        if (items > 0) {
+        if (!finished && items > 0) {
             items--;
-            connection.send(new ItemMessage(ItemMessage.Effect.PLUS_LINE));
+            ItemMessage.Effect[] all = ItemMessage.Effect.values();
+            connection.send(new ItemMessage(all[random.nextInt(all.length)]));
         }
     }
     private BoardStateMessage takeSnapshot() {
@@ -130,13 +144,40 @@ public class DuelFrame extends JFrame {
         }
 
         return new BoardStateMessage(cells, game.currentType(), pieceX, pieceY,
-                game.getLinesRemoved(), game.isGameOver());
+                game.getLinesRemoved(), game.getScore(), game.isGameOver());
+    }
+    private GimmickEffect makeEffect(ItemMessage.Effect effect) {
+        switch (effect) {
+            case SPEED_UP:
+                return new SpeedUp();
+            case FADE_BLOCKS:
+                return new FadeBlocks();
+            case NO_ROTATE:
+                return new NoRotate();
+            case REVERSE_KEYS:
+                return new ReverseKeys();
+            case INVISIBLE:
+                return new InvisiblePiece();
+            case COVER_SCREEN:
+                return new CoverScreen();
+            case ERASE_DOT:
+                return new EraseDot();
+            case ERASE_CROSS:
+                return new EraseCross();
+            case ERASE_SQUARE:
+                return new EraseSquare();
+            case ERASE_LINE:
+                return new EraseLine();
+            default:
+                return new PlusLine();
+        }
     }
 
     private void onMessage(Object message) {
         if (message instanceof ItemMessage) {
+            ItemMessage item = (ItemMessage) message;
             SwingUtilities.invokeLater(() -> {
-                new Gimmick(myBoard.getGame()).plusLine();
+                myBoard.getGame().getGimmick().add(makeEffect(item.effect));
                 myBoard.repaint();
             });
             return;
@@ -147,10 +188,11 @@ public class DuelFrame extends JFrame {
         BoardStateMessage state = (BoardStateMessage) message;
         SwingUtilities.invokeLater(() -> {
             opponentView.setState(state);
-            opponentLines = state.linesRemoved;
-            opponentStatus.setText(state.gameOver ? "game over" : String.valueOf(state.linesRemoved));
+            opponentScore = state.score;
+            opponentStatus.setText(state.gameOver ? "game over" : String.valueOf(state.score));
             if (state.gameOver && !finished) {
                 finished = true;
+                myBoard.setPaused(true);
                 Coins.add(fee * 2);
                 setTitle("승리! 참가비 " + fee + " 코인을 받았습니다");
             }
