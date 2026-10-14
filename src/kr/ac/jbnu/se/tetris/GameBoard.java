@@ -127,6 +127,13 @@ public class GameBoard {
         return result;
     }
 
+    private long spawnedAtMs = 0;   // 현재 블록이 나온 시각
+
+    /** 현재 블록이 나온 지 몇 ms 지났는지. */
+    public long msSinceSpawn() {
+        return System.currentTimeMillis() - spawnedAtMs;
+    }
+
     /** 새 블록 생성. 예고된 next 를 꺼내 쓰고 다음 것을 새로 뽑는다. */
     public boolean spawn() {
         Tetrominoes shape = nextShape;
@@ -138,6 +145,7 @@ public class GameBoard {
 
     /** 주어진 블록을 시작 위치에 놓는다. 놓을 수 없으면 게임 오버. */
     private boolean place(Tetrominoes shape, int color) {
+        spawnedAtMs = System.currentTimeMillis();   // [기믹] INVISIBLE 이 첫 1초간 보여 주기 위한 기준 시각
         curPiece.setShape(shape);
         curColor = color;
         curX = WIDTH / 2 + 1;
