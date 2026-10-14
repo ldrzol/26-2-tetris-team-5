@@ -50,7 +50,7 @@ public class SharedClientFrame extends JFrame {
             scoreLabel.setText("나(P2): " + state.getScore(1) + "    상대(P1): " + state.getScore(0));
             if (state.isGameOver() && !settled) {
                 settled = true;
-                setTitle(Coins.settle(state.getWinner(), 1, fee));
+                ResultPanel.showShared(this, connection, state.getWinner(), 1, fee);
             }
         });
     }

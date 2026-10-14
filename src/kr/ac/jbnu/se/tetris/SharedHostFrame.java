@@ -55,7 +55,7 @@ public class SharedHostFrame extends JFrame {
         view.setState(game);
         if (game.isGameOver() && !settled) {
             settled = true;
-            setTitle(Coins.settle(game.getWinner(), 0, fee));
+            ResultPanel.showShared(this, connection, game.getWinner(), 0, fee);
         }
         long left = Math.max(0, (endTime - System.currentTimeMillis()) / 1000);
         scoreLabel.setText("남은 시간 " + left / 60 + ":" + String.format("%02d", left % 60)
