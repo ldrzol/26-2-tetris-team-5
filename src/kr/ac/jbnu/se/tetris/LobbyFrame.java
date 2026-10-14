@@ -128,7 +128,6 @@ class LobbyFrame extends MenuScreen {
 			status = text + " - 상대 준비를 기다리는 중...";
 		}
 		repaint();
-		frame.showScreen(MainFrame.VERSUS);
 	}
 
 
