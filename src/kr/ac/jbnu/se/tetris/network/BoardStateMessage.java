@@ -1,8 +1,8 @@
 package kr.ac.jbnu.se.tetris.network;
 
-import java.io.Serializable;
+import kr.ac.jbnu.se.tetris.game.Tetrominoes;
 
-import kr.ac.jbnu.se.tetris.Tetrominoes;
+import java.io.Serializable;
 
 /**
  * 내 판을 상대에게 보여 주기 위해 보내는 화면 한 장.

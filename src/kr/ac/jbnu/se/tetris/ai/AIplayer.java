@@ -1,11 +1,11 @@
 package kr.ac.jbnu.se.tetris.ai;
 
-import javax.swing.Timer;
+import kr.ac.jbnu.se.tetris.game.Board;
+import kr.ac.jbnu.se.tetris.game.GameBoard;
+import kr.ac.jbnu.se.tetris.game.Shape;
+import kr.ac.jbnu.se.tetris.game.Tetrominoes;
 
-import kr.ac.jbnu.se.tetris.Board;
-import kr.ac.jbnu.se.tetris.GameBoard;
-import kr.ac.jbnu.se.tetris.Shape;
-import kr.ac.jbnu.se.tetris.Tetrominoes;
+import javax.swing.Timer;
 
 public class AIplayer {
     public enum Level {
