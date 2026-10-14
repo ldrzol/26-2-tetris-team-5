@@ -40,6 +40,13 @@ public class GameBoard {
     private static final int QUEUE_MIN = 7;
     private final Deque<Tetrominoes> queue = new ArrayDeque<>();
 
+    // ---- 점수 ----
+    private static final int[] LINE_POINTS    = { 0, 100, 300, 500, 800 };    // 지운 줄 수별 기본 점수 (x 레벨)
+    private static final int[] PERFECT_POINTS = { 0, 800, 1200, 1800, 2000 }; // 퍼펙트 클리어 보너스 (x 레벨)
+    private static final int COMBO_POINTS = 50;                               // 콤보 보너스 (x 콤보 x 레벨)
+    private int score = 0;
+    private int combo = -1;                 // 연속으로 줄을 지운 횟수 (-1: 연속 아님)
+
     public GameBoard() {
         reset();
     }
@@ -70,6 +77,8 @@ public class GameBoard {
         flashRows.clear();
         queue.clear();
         gimmick.clear();                        // [기믹]
+        score = 0;
+        combo = -1;
         rollNext();
     }
 
@@ -188,7 +197,6 @@ public class GameBoard {
 
     public boolean rotateRight() { return handle(Gimmick.Input.ROTATE_RIGHT); }
 
-    /** [기믹] 눌린 입력을 remap() 으로 바꾼 뒤 실행한다. 회전 불가도 여기서 막는다. */
     /** 눌린 입력을 remap() 으로 바꾼 뒤 실행한다. 회전 불가도 여기서 막는다. */
     private boolean handle(Gimmick.Input pressed) {
         switch (gimmick.remap(pressed)) {
@@ -224,8 +232,10 @@ public class GameBoard {
     }
 
     public void hardDrop() {
-        while (moveDown()) {
-        }
+        int cells = 0;
+        while (moveDown())
+            cells++;
+        score += cells * 2;                     // 하드 드롭: 떨어뜨린 칸마다 2점
         lockPiece();
     }
 
@@ -291,6 +301,15 @@ public class GameBoard {
         return holdColor;
     }
 
+    public int getScore() {
+        return score;
+    }
+
+    /** 소프트 드롭처럼 바깥에서 점수를 더할 때 쓴다. */
+    void addScore(int points) {
+        score += points;
+    }
+
     public int getLinesRemoved() {
         return linesRemoved;
     }
@@ -349,18 +368,37 @@ public class GameBoard {
         if (isClearing()) {
             curPiece.setShape(Tetrominoes.NoShape);
         } else {
+            combo = -1;                         // 줄을 못 지웠으니 콤보가 끊긴다
             spawn();
         }
     }
 
     /** 깜빡임이 끝난 뒤 호출. 기록해 둔 줄을 실제로 지우고, 새 블록은 다음 틱에 만든다. */
     public void finishClear() {
+        int n = flashRows.size();
+        int level = getLevel();                                    // 줄을 더하기 전 레벨로 점수를 계산한다
+
         Collections.sort(flashRows, Collections.reverseOrder());   // 높은 줄부터 당겨야 아래 줄 번호가 안 밀린다
         for (int row : flashRows)
             downLine(row);
-        linesRemoved += flashRows.size();
+        linesRemoved += n;
         flashRows.clear();
         spawnPending = true;
+
+        int gained = LINE_POINTS[n] * level;                       // 줄 삭제
+        combo++;
+        gained += COMBO_POINTS * combo * level;                    // 콤보 (첫 삭제는 combo=0 이라 0점)
+        if (isBoardEmpty())
+            gained += PERFECT_POINTS[n] * level;                   // 퍼펙트 클리어
+        score += gained;
+    }
+
+    private boolean isBoardEmpty() {
+        for (int y = 0; y < HEIGHT; y++)
+            for (int x = 0; x < WIDTH; x++)
+                if (cells[y][x] != Tetrominoes.NoShape)
+                    return false;
+        return true;
     }
 
     private boolean isLineFull(int row){
@@ -370,6 +408,33 @@ public class GameBoard {
             }
         }
         return true;
+    }
+
+    // ---- [기믹] Gimmick 이 쓰는 도우미 ----
+
+    /** 쌓인 칸 하나를 지운다. 보드 밖이면 무시한다. */
+    void eraseCell(int x, int y) {
+        if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
+        cells[y][x] = Tetrominoes.NoShape;
+        colorIds[y][x] = 0;
+        age[y][x] = 0;
+    }
+
+    /** 블록이 쌓인 칸 중 하나를 무작위로 고른다. {x, y} 를 돌려주고, 하나도 없으면 null. */
+    int[] randomStackedCell() {
+        List<int[]> filled = new ArrayList<>();
+        for (int y = 0; y < HEIGHT; y++)
+            for (int x = 0; x < WIDTH; x++)
+                if (cells[y][x] != Tetrominoes.NoShape)
+                    filled.add(new int[] { x, y });
+        return filled.isEmpty() ? null : filled.get(rng.nextInt(filled.size()));
+    }
+
+    /** 줄이 한 칸 올라온 뒤 조작 중인 블록이 겹치면 한 칸 위로 올린다. 그래도 안 되면 게임 오버. */
+    void liftPieceIfBlocked() {
+        if (curPiece.getShape() == Tetrominoes.NoShape) return;   // 줄 삭제 중에는 조작 블록이 없다
+        if (!tryMove(curPiece, curX, curY) && !tryMove(curPiece, curX, curY + 1))
+            gameOver = true;
     }
 
     public void downLine(int row) {
