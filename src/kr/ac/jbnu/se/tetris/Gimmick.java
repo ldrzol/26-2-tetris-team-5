@@ -209,6 +209,7 @@ class FadeBlocks implements GimmickEffect {
 /** 회전을 막는다. */
 class NoRotate implements GimmickEffect {
     @Override public String name() { return "NO ROTATE"; }
+    @Override public String icon() { return "images/items/gim_norotate.png"; }
     @Override public boolean blocksRotation() { return true; }
 }
 
@@ -260,6 +261,8 @@ class PlusLine implements GimmickEffect {
     private final Random rand = new Random();
 
     @Override public String name() { return "PLUS LINE"; }
+
+    @Override public String icon() { return "images/items/gim_floor.png"; }
 
     @Override
     public void onActivate(GameBoard game) {
