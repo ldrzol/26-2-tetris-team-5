@@ -10,6 +10,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.EnumMap;
+import java.util.Map;
 
 import javax.imageio.ImageIO;
 
@@ -26,6 +28,11 @@ public class Board extends JPanel implements ActionListener {
 	private boolean isPaused = false;// 일시정지 여부
 
 	private static final int SCORE_PER_LINE = 100;
+
+	private static final int DROP_MS = 400;          // 평소 낙하 간격
+	private static final int SLOW_MS = 10000;        // 감속 아이템 지속 시간
+
+	private final Timer slowTimer = new Timer(SLOW_MS, e -> endSlow());
 
 	private static final int FLASH_TOTAL = 6;//블럭 제거 이펙트 깜빡이는 횟수, 짝수로 둘 것
 	private final Timer flashTimer = new Timer(100, e -> onFlashTick());//깜빡이는 빈도
@@ -50,8 +57,9 @@ public class Board extends JPanel implements ActionListener {
 
 	public Board(JLabel statusbar) {
 		this.statusbar = statusbar;
-		timer = new Timer(400, this);   // 400ms마다 actionPerformed 호출
+		timer = new Timer(DROP_MS, this);   // DROP_MS 마다 actionPerformed 호출
 		lockTimer.setRepeats(false);
+		slowTimer.setRepeats(false);
 	}
 
 	/** 타이머가 호출. 게임 규칙의 한 틱을 진행한 뒤 화면을 갱신한다. */
@@ -70,6 +78,8 @@ public class Board extends JPanel implements ActionListener {
 		flashTimer.stop();
 		flashOn = false;
 		clearLockState();
+		slowTimer.stop();
+		timer.setDelay(DROP_MS);
 		game.reset();
 		game.spawn();
 		timer.start();
@@ -182,6 +192,29 @@ public class Board extends JPanel implements ActionListener {
 		}
 	}
 
+	/** 감속이 끝나면 원래 속도로 돌려놓는다. */
+	private void endSlow() {
+		timer.setDelay(DROP_MS);
+	}
+
+	/** 가방에 있으면 아이템을 하나 써서 효과를 낸다. */
+	public boolean useItem(Item item) {
+		if (!isRunning() || game.isGameOver() || !Wallet.use(item))
+			return false;
+
+		switch (item) {
+			case BOMB:
+				game.downLine(0);           // 맨 아래 줄을 통째로 치운다
+				break;
+			case SLOW:
+				timer.setDelay(DROP_MS * 2);
+				slowTimer.restart();
+				break;
+		}
+		afterAction();
+		return true;
+	}
+
 	private void startFlash(){
 		if(game.isClearing() && !flashTimer.isRunning()){
 			flashCount = 0;
@@ -262,18 +295,18 @@ public class Board extends JPanel implements ActionListener {
 		drawFlash(g, boardTop);
 	}
 
-	/** 블록이 고를 수 있는 색. 원래 테트로미노 7색 그대로다. */
-	private static final Color[] PALETTE = { new Color(204, 102, 102), new Color(102, 204, 102),
-			new Color(102, 102, 204), new Color(204, 204, 102), new Color(204, 102, 204), new Color(102, 204, 204),
-			new Color(218, 170, 0) };
-
 	private static final Color GARBAGE_COLOR = new Color(153, 153, 153);
 
 	private static final BufferedImage SRC_TILE = loadTile();
-
-	/** tile.png 를 색 번호별로 미리 물들여 둔다. (흰 부분만 색이 되고 검은 테두리는 남는다) */
-	private static final BufferedImage[] TILES = makeTiles();
 	private static final BufferedImage GARBAGE_TILE = tint(SRC_TILE, GARBAGE_COLOR);
+
+	/** 스킨별로 물들인 타일. 한 번 만들어 두고 다시 쓴다. */
+	private static final Map<Skin, BufferedImage[]> TILES = new EnumMap<>(Skin.class);
+
+	/** 지금 장착한 스킨의 타일. (흰 부분만 색이 되고 검은 테두리는 남는다) */
+	private static BufferedImage[] tiles() {
+		return TILES.computeIfAbsent(Wallet.skin(), Board::makeTiles);
+	}
 
 	private static BufferedImage loadTile() {
 		try {
@@ -283,10 +316,10 @@ public class Board extends JPanel implements ActionListener {
 		}
 	}
 
-	private static BufferedImage[] makeTiles() {
+	private static BufferedImage[] makeTiles(Skin skin) {
 		BufferedImage[] tiles = new BufferedImage[GameBoard.COLOR_COUNT];
 		for (int i = 0; i < tiles.length; i++) {
-			tiles[i] = tint(SRC_TILE, PALETTE[i]);
+			tiles[i] = tint(SRC_TILE, skin.colors[i]);
 		}
 		return tiles;
 	}
@@ -317,7 +350,7 @@ public class Board extends JPanel implements ActionListener {
 	 * 두꺼워지지 않는다.
 	 */
 	private void drawSquare(Graphics g, int x, int y, Tetrominoes shape, int colorId) {
-		BufferedImage tile = (shape == Tetrominoes.GarbageShape) ? GARBAGE_TILE : TILES[colorId];
+		BufferedImage tile = (shape == Tetrominoes.GarbageShape) ? GARBAGE_TILE : tiles()[colorId];
 		int border = Math.max(1, (int) Math.round(squareWidth() * BORDER_RATIO));
 		g.drawImage(tile, x - border / 2, y - border / 2,
 				squareWidth() + border, squareHeight() + border, this);
@@ -346,7 +379,7 @@ public class Board extends JPanel implements ActionListener {
 		int originX = area.x + (area.width - cols * cell) / 2;
 		int originY = area.y + (area.height - rows * cell) / 2;
 
-		BufferedImage tile = TILES[colorId];
+		BufferedImage tile = tiles()[colorId];
 		int border = Math.max(1, (int) Math.round(cell * BORDER_RATIO));
 		for (int i = 0; i < 4; i++) {
 			// 보드와 같은 규칙: y 가 클수록 아래쪽이다
