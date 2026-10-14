@@ -11,16 +11,23 @@ import java.awt.event.KeyEvent;
 final class Settings {
 
 	/** 조작키 표의 줄 이름. 순서가 keys 의 줄 순서다. */
-	static final String[] ACTIONS = { "왼쪽 이동", "오른쪽 이동", "회전", "소프트 드롭", "하드 드롭", "홀드" };
+	static final String[] ACTIONS = { "왼쪽 이동", "오른쪽 이동", "시계 회전", "반시계 회전", "소프트 드롭", "하드 드롭", "홀드" };
 
-	/** [동작][0] = 1p, [동작][1] = 2p */
+	/** ACTIONS 의 줄 번호. GameKeys 가 이 번호로 동작을 연결한다. */
+	static final int LEFT = 0, RIGHT = 1, ROTATE_CW = 2, ROTATE_CCW = 3, SOFT_DROP = 4, HARD_DROP = 5, HOLD = 6;
+
+	/**
+	 * [동작][0] = 1p, [동작][1] = 2p. 1p 는 가장 널리 쓰이는 배치다.
+	 *   ←/→ 이동, ↑ 시계 회전, Z 반시계 회전, ↓ 소프트 드롭, Space 하드 드롭, C 홀드
+	 */
 	static final int[][] DEFAULT_KEYS = {
 			{ KeyEvent.VK_LEFT, KeyEvent.VK_A },
 			{ KeyEvent.VK_RIGHT, KeyEvent.VK_D },
 			{ KeyEvent.VK_UP, KeyEvent.VK_W },
+			{ KeyEvent.VK_Z, KeyEvent.VK_Q },
 			{ KeyEvent.VK_DOWN, KeyEvent.VK_S },
-			{ KeyEvent.VK_SPACE, KeyEvent.VK_Q },
-			{ KeyEvent.VK_C, KeyEvent.VK_E },
+			{ KeyEvent.VK_SPACE, KeyEvent.VK_E },
+			{ KeyEvent.VK_C, KeyEvent.VK_R },
 	};
 
 	static final int DEFAULT_VOLUME = 70;
