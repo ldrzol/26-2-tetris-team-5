@@ -17,6 +17,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import kr.ac.jbnu.se.tetris.network.BoardStateMessage;
+import kr.ac.jbnu.se.tetris.network.ItemMessage;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
 
 public class DuelFrame extends JFrame {
@@ -24,9 +25,15 @@ public class DuelFrame extends JFrame {
     private final OpponentView opponentView = new OpponentView();
     private final JLabel opponentStatus = new JLabel(" 0");
     private final PeerConnection connection;
+    private int items = 0;
+    private final int fee;
+    private boolean finished = false;
+    private final long endTime = System.currentTimeMillis() + 5 * 60 * 1000L;
+    private int opponentLines = 0;
 
-    public DuelFrame(PeerConnection connection) {
+    public DuelFrame(PeerConnection connection, int fee) {
         this.connection = connection;
+        this.fee = fee;
 
         JLabel myStatus = new JLabel(" 0");
         myBoard = new Board(myStatus);
@@ -59,8 +66,52 @@ public class DuelFrame extends JFrame {
 
     private void sendSnapshot() {
         connection.send(takeSnapshot());
+        if (finished) {
+            return;
+        }
+        if (myBoard.getGame().isGameOver()) {
+            finished = true;
+            setTitle("패배 - 참가비 " + fee + " 코인을 잃었습니다");
+            return;
+        }
+        long left = (endTime - System.currentTimeMillis()) / 1000;
+        if (left <= 0) {
+            finishByTime();
+            return;
+        }
+        setTitle("아이템 대전 - 남은 시간 " + left / 60 + ":" + String.format("%02d", left % 60)
+                + " - 아이템 " + itemCount() + "개 (Z 키로 사용)");
     }
 
+    private void finishByTime() {
+        finished = true;
+        myBoard.setPaused(true);
+        int mine = myBoard.getGame().getLinesRemoved();
+        if (mine > opponentLines) {
+            Coins.add(fee * 2);
+            setTitle("시간 종료 - 승리! 참가비 " + fee + " 코인을 받았습니다");
+        } else if (mine == opponentLines) {
+            Coins.add(fee);
+            setTitle("시간 종료 - 무승부, 참가비를 돌려받았습니다");
+        } else {
+            setTitle("시간 종료 - 패배, 참가비 " + fee + " 코인을 잃었습니다");
+        }
+    }
+
+    public int itemCount() {
+        return items;
+    }
+
+    public void addItem() {
+        items++;
+    }
+
+    private void useItem() {
+        if (items > 0) {
+            items--;
+            connection.send(new ItemMessage(ItemMessage.Effect.PLUS_LINE));
+        }
+    }
     private BoardStateMessage takeSnapshot() {
         GameBoard game = myBoard.getGame();
 
@@ -83,13 +134,26 @@ public class DuelFrame extends JFrame {
     }
 
     private void onMessage(Object message) {
+        if (message instanceof ItemMessage) {
+            SwingUtilities.invokeLater(() -> {
+                new Gimmick(myBoard.getGame()).plusLine();
+                myBoard.repaint();
+            });
+            return;
+        }
         if (!(message instanceof BoardStateMessage)) {
             return;
         }
         BoardStateMessage state = (BoardStateMessage) message;
         SwingUtilities.invokeLater(() -> {
             opponentView.setState(state);
+            opponentLines = state.linesRemoved;
             opponentStatus.setText(state.gameOver ? "game over" : String.valueOf(state.linesRemoved));
+            if (state.gameOver && !finished) {
+                finished = true;
+                Coins.add(fee * 2);
+                setTitle("승리! 참가비 " + fee + " 코인을 받았습니다");
+            }
         });
     }
 
@@ -99,6 +163,7 @@ public class DuelFrame extends JFrame {
         bind(KeyEvent.VK_UP, "rotate", myBoard::rotateRight);
         bind(KeyEvent.VK_DOWN, "softDrop", myBoard::softDrop);
         bind(KeyEvent.VK_SPACE, "hardDrop", myBoard::hardDrop);
+        bind(KeyEvent.VK_Z, "useItem", this::useItem);
     }
 
     private void bind(int keyCode, String name, Runnable action) {
