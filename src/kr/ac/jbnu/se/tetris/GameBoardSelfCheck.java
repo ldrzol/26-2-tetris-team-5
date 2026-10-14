@@ -13,6 +13,8 @@ public class GameBoardSelfCheck {
 		previewMatchesWhatSpawns();
 		holdSwapsAndLocksOncePerPiece();
 		bothGetterFamiliesAgree();
+		levelFollowsScore();
+		clearStackKeepsScore();
 		System.out.println("GameBoardSelfCheck: 통과");
 	}
 
@@ -65,6 +67,42 @@ public class GameBoardSelfCheck {
 		g.hold();
 		check(g.getHoldType() == g.holdType(), "홀드 후 두 게터가 어긋남");
 		check(g.isHoldUsed(), "홀드했는데 isHoldUsed 가 false");
+	}
+
+	/** 레벨은 누적 점수(levelGoal)를 넘길 때마다 오르고 MAX_LEVEL 에서 멈춘다. */
+	static void levelFollowsScore() {
+		check(GameBoard.levelGoal(1) == 1000, "레벨 1 목표가 1000점이 아님: " + GameBoard.levelGoal(1));
+		check(GameBoard.levelGoal(2) == 3000, "레벨 2 목표가 3000점이 아님: " + GameBoard.levelGoal(2));
+
+		GameBoard g = new GameBoard();
+		check(g.getLevel() == 1, "0점인데 레벨이 1이 아님: " + g.getLevel());
+
+		g.addScore(GameBoard.levelGoal(1) - 1);
+		check(g.getLevel() == 1, "목표 직전인데 레벨이 올라감: " + g.getLevel());
+
+		g.addScore(1);
+		check(g.getLevel() == 2, "목표를 넘겼는데 레벨이 안 오름: " + g.getLevel());
+
+		g.addScore(GameBoard.levelGoal(GameBoard.MAX_LEVEL) * 10);
+		check(g.getLevel() == GameBoard.MAX_LEVEL, "레벨 상한을 넘김: " + g.getLevel());
+	}
+
+	/** 레벨 클리어로 판을 비워도 점수·레벨·지운 줄 수는 남아 있어야 한다. */
+	static void clearStackKeepsScore() {
+		GameBoard g = new GameBoard();
+		g.spawn();
+		g.addScore(1200);
+		g.hardDrop();                       // 바닥에 한 덩어리 쌓는다
+
+		int before = g.getScore(), level = g.getLevel();
+		g.clearStack();
+
+		for (int y = 0; y < GameBoard.HEIGHT; y++)
+			for (int x = 0; x < GameBoard.WIDTH; x++)
+				check(g.shapeAt(x, y) == Tetrominoes.NoShape, "판을 비웠는데 블록이 남음");
+		check(g.getScore() == before, "판을 비웠더니 점수가 바뀜: " + g.getScore());
+		check(g.getLevel() == level, "판을 비웠더니 레벨이 바뀜: " + g.getLevel());
+		check(g.currentType() != Tetrominoes.NoShape, "판을 비운 뒤 새 블록이 안 나옴");
 	}
 
 	static void check(boolean ok, String message) {

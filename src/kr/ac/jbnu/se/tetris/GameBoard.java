@@ -56,9 +56,46 @@ public class GameBoard {
         return gimmick;
     }
 
-    /** [기믹] 현재 레벨. 10줄을 지울 때마다 1씩 오른다. */
+    /** 레벨 상한. 가이드라인 마라톤과 같게 15에서 멈춘다. */
+    public static final int MAX_LEVEL = 15;
+
+    /**
+     * 레벨 n 을 끝내는 데 필요한 '누적' 점수.
+     *
+     * 가이드라인은 레벨당 10줄이고 한 줄(싱글) 점수가 100 x 레벨이므로,
+     * 레벨 n 을 깨는 데 드는 점수는 1000 x n 이다. 그것을 누적하면
+     * 500 x n x (n+1) 이 된다. (1000, 3000, 6000, 10000, 15000 ...)
+     */
+    public static int levelGoal(int level) {
+        return 500 * level * (level + 1);
+    }
+
+    /** 현재 레벨. 점수가 levelGoal 을 넘을 때마다 오른다. */
     public int getLevel() {
-        return linesRemoved / 10 + 1;
+        int level = 1;
+        while (level < MAX_LEVEL && score >= levelGoal(level))
+            level++;
+        return level;
+    }
+
+    /** 이번 레벨을 끝내는 데 필요한 점수. (화면 표시용) */
+    public int getLevelGoal() {
+        return levelGoal(getLevel());
+    }
+
+    /**
+     * 레벨 클리어 뒤: 쌓인 블록만 지우고 점수·레벨·줄 수는 그대로 이어 간다.
+     */
+    public void clearStack() {
+        for (int i = 0; i < HEIGHT; ++i) {
+            Arrays.fill(cells[i], Tetrominoes.NoShape);
+            Arrays.fill(colorIds[i], 0);
+            Arrays.fill(age[i], 0);
+        }
+        flashRows.clear();
+        combo = -1;
+        spawnPending = false;
+        spawn();
     }
 
     /** 보드를 비우고 상태를 초기화한다. (첫 블록은 spawn()으로 따로 만든다) */

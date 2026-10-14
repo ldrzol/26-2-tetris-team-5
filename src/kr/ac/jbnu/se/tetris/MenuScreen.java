@@ -58,12 +58,15 @@ class MenuScreen extends DesignPanel {
 
 	private void move(int d) {
 		selected = (selected + d + items.length) % items.length;
+		Sfx.play(Sfx.Sound.MOVE);
 		repaint();
 	}
 
 	private void choose() {
-		if (isSelectable(selected))
+		if (isSelectable(selected)) {
+			Sfx.play(Sfx.Sound.ROTATE);
 			select(selected);
+		}
 	}
 
 	/** 항목을 골랐을 때. 기본은 생성자에 넘긴 동작, 자식 화면은 덮어써도 된다. */

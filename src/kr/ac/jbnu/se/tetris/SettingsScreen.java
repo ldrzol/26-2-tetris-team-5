@@ -33,9 +33,9 @@ class SettingsScreen extends DesignPanel {
 	private static final int BACK_TEXT_X = 179, BACK_TEXT_TOP = 79;
 
 	private static final Rectangle SOUND_TAB = new Rectangle(73, 201, 186, 62);
-	private static final Rectangle SOUND_BOX = new Rectangle(73, 263, 927, 370);
-	private static final int[] SOUND_ROW = { 365, 495 };   // 글자 위
-	private static final int[] GAUGE_ROW = { 367, 497 };   // 눈금 위
+	private static final Rectangle SOUND_BOX = new Rectangle(73, 263, 927, 200);
+	private static final int SOUND_ROW = 335;   // 글자 위 (상자 가운데)
+	private static final int GAUGE_ROW = 337;   // 눈금 위
 	private static final int SOUND_LABEL_X = 141, SOUND_VALUE_X = 873;
 	private static final int GAUGE_X = 347, GAUGE_STEP = 49, GAUGE_W = 38, GAUGE_H = 52;
 	private static final int GAUGE_COUNT = 10;
@@ -68,7 +68,7 @@ class SettingsScreen extends DesignPanel {
 	private final Runnable onBack;
 
 	// 고치는 중인 사본
-	private int bgm = Settings.bgm, sfx = Settings.sfx;
+	private int sfx = Settings.sfx;
 	private boolean ghost = Settings.ghost, grid = Settings.grid;
 	private int[][] keys = Settings.copy(Settings.keys);
 
@@ -82,12 +82,13 @@ class SettingsScreen extends DesignPanel {
 		onClick(SAVE, this::save);
 		onClick(DEFAULTS, this::resetDefaults);
 
+		for (int i = 0; i < GAUGE_COUNT; i++) {
+			final int volume = (i + 1) * GAUGE_UNIT;
+			onClick(gaugeCell(i), () -> setVolume(volume));
+		}
+
 		for (int row = 0; row < 2; row++) {
 			final int r = row;
-			for (int i = 0; i < GAUGE_COUNT; i++) {
-				final int volume = (i + 1) * GAUGE_UNIT;
-				onClick(gaugeCell(row, i), () -> setVolume(r, volume));
-			}
 			onClick(switchBox(row, true), () -> setSwitch(r, true));
 			onClick(switchBox(row, false), () -> setSwitch(r, false));
 		}
@@ -115,11 +116,8 @@ class SettingsScreen extends DesignPanel {
 
 	// ── 값 바꾸기 ───────────────────────────────────────────────────────────
 
-	private void setVolume(int row, int volume) {
-		if (row == 0)
-			bgm = volume;
-		else
-			sfx = volume;
+	private void setVolume(int volume) {
+		sfx = volume;
 		repaint();
 	}
 
@@ -150,7 +148,6 @@ class SettingsScreen extends DesignPanel {
 	}
 
 	private void save() {
-		Settings.bgm = bgm;
 		Settings.sfx = sfx;
 		Settings.ghost = ghost;
 		Settings.grid = grid;
@@ -159,7 +156,7 @@ class SettingsScreen extends DesignPanel {
 	}
 
 	private void resetDefaults() {
-		bgm = sfx = Settings.DEFAULT_VOLUME;
+		sfx = Settings.DEFAULT_VOLUME;
 		ghost = Settings.DEFAULT_GHOST;
 		grid = Settings.DEFAULT_GRID;
 		keys = Settings.copy(Settings.DEFAULT_KEYS);
@@ -169,8 +166,8 @@ class SettingsScreen extends DesignPanel {
 
 	// ── 자리 ────────────────────────────────────────────────────────────────
 
-	private Rectangle gaugeCell(int row, int index) {
-		return new Rectangle(GAUGE_X + index * GAUGE_STEP, GAUGE_ROW[row], GAUGE_W, GAUGE_H);
+	private Rectangle gaugeCell(int index) {
+		return new Rectangle(GAUGE_X + index * GAUGE_STEP, GAUGE_ROW, GAUGE_W, GAUGE_H);
 	}
 
 	private Rectangle switchBox(int row, boolean on) {
@@ -193,8 +190,7 @@ class SettingsScreen extends DesignPanel {
 
 		outline(g, SOUND_BOX);
 		tab(g, SOUND_TAB, "소리", GROUP_SIZE);
-		gauge(g, 0, "배경음", bgm);
-		gauge(g, 1, "효과음", sfx);
+		gauge(g, "효과음", sfx);
 
 		outline(g, GAME_BOX);
 		tab(g, GAME_TAB, "게임", GROUP_SIZE);
@@ -213,11 +209,11 @@ class SettingsScreen extends DesignPanel {
 	}
 
 	/** 음량 한 줄: 이름 + 눈금 열 개 + 숫자. 켜진 눈금은 크림색으로 채운다. */
-	private void gauge(Graphics2D g, int row, String label, int volume) {
-		text(g, label, SOUND_LABEL_X, SOUND_ROW[row], ROW_SIZE, Ui.CREAM);
-		text(g, String.valueOf(volume), SOUND_VALUE_X, SOUND_ROW[row], ROW_SIZE, Ui.CREAM);
+	private void gauge(Graphics2D g, String label, int volume) {
+		text(g, label, SOUND_LABEL_X, SOUND_ROW, ROW_SIZE, Ui.CREAM);
+		text(g, String.valueOf(volume), SOUND_VALUE_X, SOUND_ROW, ROW_SIZE, Ui.CREAM);
 		for (int i = 0; i < GAUGE_COUNT; i++) {
-			Rectangle cell = gaugeCell(row, i);
+			Rectangle cell = gaugeCell(i);
 			if (i < volume / GAUGE_UNIT)
 				fill(g, cell, Ui.CREAM);
 			else
