@@ -111,20 +111,27 @@ public class Gimmick {
         return f;
     }
 
-    /** 화면에 현재 기믹 이름을 보여 주고 싶을 때 쓴다. 없으면 빈 문자열. */
-    public String activeNames() {
-        StringBuilder sb = new StringBuilder();
-        for (GimmickEffect e : active) {
-            if (sb.length() > 0) sb.append(", ");
-            sb.append(e.name());
-        }
-        return sb.toString();
+    /** 지금 켜져 있는 기믹들 (오래된 순). 화면에 아이콘이나 이름을 그릴 때 쓴다. */
+    List<GimmickEffect> activeEffects() {
+        return java.util.Collections.unmodifiableList(active);
     }
-    /** 켜진 기믹 이름 목록 (화면에 한 줄씩 그릴 때 쓴다). */
-    public java.util.List<String> activeNameList() {
-        java.util.List<String> names = new java.util.ArrayList<>();
-        for (GimmickEffect e : active) names.add(e.name());
-        return names;
+
+    /**
+     * 자가 점검. java -ea 로 실행한다.
+     *
+     * 아이콘은 없어도 그냥 안 그려지기만 해서 오타를 눈으로 잡기 어렵다. 그래서
+     * 적어 둔 경로가 실제로 있는지만 확인한다. (게임은 돌리지 않는다)
+     */
+    public static void main(String[] args) {
+        for (GimmickEffect e : new Gimmick(null).pool)
+            assert e.icon() == null || Gimmick.class.getResource(e.icon()) != null
+                    : e.name() + " 의 아이콘 파일이 없다: " + e.icon();
+
+        for (Item item : Item.values())
+            assert item.icon == null || Item.class.getResource(item.icon) != null
+                    : item.label + " 의 아이콘 파일이 없다: " + item.icon;
+
+        System.out.println("ok");
     }
 
 }
@@ -138,6 +145,9 @@ interface GimmickEffect {
 
     /** 이름 (상태 표시용). */
     String name();
+
+    /** 화면에 띄울 아이콘 경로. 그림이 아직 없으면 null 이고, 그때는 안 그린다. */
+    default String icon() { return null; }
 
     /** 이 기믹이 켜지는 순간 한 번 호출된다. (일회성 효과용) */
     default void onActivate(GameBoard game) {}
@@ -167,6 +177,7 @@ interface GimmickEffect {
 /** 낙하 간격을 절반으로 줄인다. */
 class SpeedUp implements GimmickEffect {
     @Override public String name() { return "SPEED UP"; }
+    @Override public String icon() { return "images/items/atk_speed.png"; }
     @Override public double speedFactor() { return 0.5; }
 }
 
@@ -203,6 +214,7 @@ class NoRotate implements GimmickEffect {
 /** 좌↔우, 반시계↔시계 회전 입력을 서로 바꾼다. */
 class ReverseKeys implements GimmickEffect {
     @Override public String name() { return "REVERSE KEYS"; }
+    @Override public String icon() { return "images/items/atk_reverse.png"; }
 
     @Override
     public Gimmick.Input remap(Gimmick.Input in) {
@@ -262,6 +274,7 @@ class CoverScreen implements GimmickEffect {
     private int sec = 0;
 
     @Override public String name() { return "COVER"; }
+    @Override public String icon() { return "images/items/atk_ink.png"; }
     @Override public void onActivate(GameBoard game) { sec = 0; }
     @Override public void onSecond(GameBoard game) { sec++; }
     @Override public double coverRatio() { return (sec % 5) < 3 ? 0.5 : 0; }
@@ -274,6 +287,8 @@ abstract class EraseShape implements GimmickEffect {
 
     /** 중심 기준 상대 좌표(dx, dy) 목록. 지울 때마다 호출된다. */
     abstract int[][] offsets();
+
+    @Override public String icon() { return "images/items/atk_bomb.png"; }
 
     @Override public void onActivate(GameBoard game) { sec = 0; }
 
@@ -292,6 +307,7 @@ abstract class EraseShape implements GimmickEffect {
 /** 1x1 : 한 칸만 지운다. */
 class EraseDot extends EraseShape {
     @Override public String name() { return "ERASE 1x1"; }
+    @Override public String icon() { return "images/items/atk_tiny.png"; }
     @Override int[][] offsets() { return new int[][] { { 0, 0 } }; }
 }
 

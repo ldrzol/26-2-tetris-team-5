@@ -167,8 +167,11 @@ class ShopScreen extends DesignPanel {
 	private void bag(Graphics2D g) {
 		int x = BAG_BOX.x + PAD;
 		for (Item item : Item.values()) {
-			text(g, item.label + " x" + Wallet.count(item), x, BAG_BOX.y + 30, ROW_SIZE, Ui.CREAM);
-			text(g, item.desc, x, BAG_BOX.y + 85, SMALL_SIZE, DIM_CREAM);
+			drawImage(g, image(item.icon),
+					new Rectangle(x, BAG_BOX.y + ICON_DROP, ICON, ICON));
+			int textX = x + ICON + 30;
+			text(g, item.label + " x" + Wallet.count(item), textX, BAG_BOX.y + 30, ROW_SIZE, Ui.CREAM);
+			text(g, item.desc, textX, BAG_BOX.y + 85, SMALL_SIZE, DIM_CREAM);
 			x += 560;
 		}
 	}
