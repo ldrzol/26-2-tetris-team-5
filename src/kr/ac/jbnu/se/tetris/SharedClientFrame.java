@@ -21,9 +21,12 @@ public class SharedClientFrame extends JFrame {
     private final SharedBoardView view = new SharedBoardView();
     private final JLabel scoreLabel = new JLabel(" ", JLabel.CENTER);
     private final PeerConnection connection;
+    private final int fee;
+    private boolean settled = false;
 
-    public SharedClientFrame(PeerConnection connection) {
+    public SharedClientFrame(PeerConnection connection, int fee) {
         this.connection = connection;
+        this.fee = fee;
 
         view.setPreferredSize(new Dimension(280, 440));
         add(scoreLabel, BorderLayout.NORTH);
@@ -45,6 +48,10 @@ public class SharedClientFrame extends JFrame {
         SwingUtilities.invokeLater(() -> {
             view.setState(state);
             scoreLabel.setText("나(P2): " + state.getScore(1) + "    상대(P1): " + state.getScore(0));
+            if (state.isGameOver() && !settled) {
+                settled = true;
+                setTitle(Coins.settle(state.getWinner(), 1, fee));
+            }
         });
     }
 

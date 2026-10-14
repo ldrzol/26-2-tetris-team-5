@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 import javax.swing.JOptionPane;
+import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
@@ -22,6 +23,8 @@ class LobbyFrame extends MenuScreen {
 	private PeerConnection connection;
 	private String status = null;
 	private boolean busy = false;
+	private String mode;
+	private int fee;
 
 	LobbyFrame(MainFrame frame) {
 		super(new String[] { "멀티 모드", "- 2인 -" }, new float[] { 128f, 96f }, 252,
@@ -48,6 +51,30 @@ class LobbyFrame extends MenuScreen {
 	}
 
 	private void createRoom() {
+		String[] options = { "클래식", "땅따먹기" };
+		int choice = JOptionPane.showOptionDialog(this, "게임 모드를 고르세요", "모드 선택",
+				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+		if (choice < 0)
+			return;
+		mode = (choice == 0) ? "CLASSIC" : "SHARED";
+
+		String input = JOptionPane.showInputDialog(this,
+				"참가비를 입력하세요 (100 이상, 내 코인 " + Coins.get() + ")", "참가비", JOptionPane.QUESTION_MESSAGE);
+		if (input == null)
+			return;
+		try {
+			fee = Integer.parseInt(input.trim());
+		} catch (NumberFormatException e) {
+			status = "참가비는 숫자로 입력하세요";
+			repaint();
+			return;
+		}
+		if (fee < 100 || fee > Coins.get()) {
+			status = "참가비는 100 이상, 내 코인 이하여야 합니다";
+			repaint();
+			return;
+		}
+
 		busy = true;
 		try {
 			status = "내 IP: " + InetAddress.getLocalHost().getHostAddress()
@@ -71,6 +98,7 @@ class LobbyFrame extends MenuScreen {
 		String ip = JOptionPane.showInputDialog(this, "방장의 IP를 입력하세요");
 		if (ip == null || ip.trim().isEmpty())
 			return;
+		mode = null;
 
 		busy = true;
 		status = ip.trim() + " 에 접속하는 중...";
@@ -87,10 +115,13 @@ class LobbyFrame extends MenuScreen {
 	}
 
 	private void onConnected(String text) {
-		status = text + " - 연결 완료!";
-		connection.send("안녕! 연결 확인");
+		if (mode == null) {
+			status = text + " - 방장이 시작하기를 기다리는 중...";
+			connection.send("READY");
+		} else {
+			status = text + " - 상대 준비를 기다리는 중...";
+		}
 		repaint();
-		frame.showScreen(MainFrame.VERSUS);
 	}
 
 	private void onFailed(String text) {
@@ -100,9 +131,54 @@ class LobbyFrame extends MenuScreen {
 	}
 
 	private void onMessage(Object message) {
-		SwingUtilities.invokeLater(() -> {
-			status = "받은 메시지: " + message;
-			repaint();
-		});
+		if (!(message instanceof String))
+			return;
+		String text = (String) message;
+		SwingUtilities.invokeLater(() -> handleText(text));
+	}
+
+	private void handleText(String text) {
+		if (mode != null) {
+			if (text.equals("READY")) {
+				connection.send("MODE:" + mode + ":" + fee);
+				status = "참가비 " + fee + " 코인 - 상대의 확인을 기다리는 중...";
+				repaint();
+			} else if (text.equals("ACCEPT")) {
+				Coins.add(-fee);
+				openGame(mode, true);
+			} else if (text.equals("DECLINE")) {
+				connection.close();
+				busy = false;
+				status = "상대의 코인이 부족해서 취소되었습니다";
+				repaint();
+			}
+		} else if (text.startsWith("MODE:")) {
+			String[] parts = text.split(":");
+			String selectedMode = parts[1];
+			fee = Integer.parseInt(parts[2]);
+			if (Coins.get() >= fee) {
+				Coins.add(-fee);
+				connection.send("ACCEPT");
+				openGame(selectedMode, false);
+			} else {
+				connection.send("DECLINE");
+				connection.close();
+				busy = false;
+				status = "코인이 부족합니다 (참가비 " + fee + ")";
+				repaint();
+			}
+		}
+	}
+
+	private void openGame(String selectedMode, boolean isHost) {
+		JFrame game;
+		if (selectedMode.equals("SHARED")) {
+			game = isHost ? new SharedHostFrame(connection, fee) : new SharedClientFrame(connection, fee);
+		} else {
+			game = new DuelFrame(connection, fee);
+		}
+		game.setLocationRelativeTo(null);
+		game.setVisible(true);
+		frame.dispose();
 	}
 }
