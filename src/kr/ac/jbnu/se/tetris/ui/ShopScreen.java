@@ -1,8 +1,8 @@
 package kr.ac.jbnu.se.tetris.ui;
 
 import kr.ac.jbnu.se.tetris.game.Sfx;
+import kr.ac.jbnu.se.tetris.item.Attack;
 import kr.ac.jbnu.se.tetris.item.Box;
-import kr.ac.jbnu.se.tetris.item.Item;
 import kr.ac.jbnu.se.tetris.item.Skin;
 import kr.ac.jbnu.se.tetris.save.Wallet;
 
@@ -12,6 +12,7 @@ import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,17 +46,22 @@ class ShopScreen extends DesignPanel {
 	private static final Rectangle BOX_TAB = new Rectangle(1060, 240, 300, 62);
 	private static final Rectangle BOX_BOX = new Rectangle(1060, 302, 800, 560);
 
-	private static final Rectangle BAG_TAB = new Rectangle(140, 920, 300, 62);
-	private static final Rectangle BAG_BOX = new Rectangle(140, 982, 1720, 160);
+	private static final Rectangle BAG_TAB = new Rectangle(140, 900, 300, 62);
+	private static final Rectangle BAG_BOX = new Rectangle(140, 962, 1720, 300);
+
+	// 보유 아이템은 종류가 많아서 격자로 늘어놓는다
+	private static final int BAG_COLS = 6;
+	private static final int BAG_CELL_W = 270, BAG_CELL_H = 90;
+	private static final int BAG_ICON = 48, BAG_TOP = 20;
+	private static final float BAG_SIZE = 28f;
 
 	private static final int ROW_TOP = 40, ROW_H = 110;   // 상자 안 첫 줄 위치와 줄 간격
-	private static final int BAG_SLOT_W = 560;            // 보유 아이템 한 칸의 가로 폭
 	private static final int PAD = 50;                    // 상자 안쪽 좌우 여백
 	private static final int ICON = 70, ICON_DROP = 20;   // 상자 그림 크기
 	private static final Rectangle ARROW = new Rectangle(0, 0, 20, 37);
 
 	private static final float TAB_SIZE = 36f, ROW_SIZE = 40f, SMALL_SIZE = 30f, STATUS_SIZE = 32f;
-	private static final int STATUS_TOP = 1200, HINT_TOP = 1300;
+	private static final int STATUS_TOP = 1300, HINT_TOP = 1360;
 
 	/** 각 칸의 줄 수. 0 = 스킨, 1 = 상자 */
 	private static final int[] ROWS = { Skin.values().length, Box.values().length };
@@ -66,12 +72,26 @@ class ShopScreen extends DesignPanel {
 	ShopScreen(Runnable onBack) {
 		onClick(BACK, onBack);
 
+		// 마우스로도 고를 수 있다. 누른 줄로 커서를 옮기고 그대로 선택한다.
+		for (int i = 0; i < Skin.values().length; i++)
+			pickOnClick(SKIN_BOX, 0, i);
+		for (int i = 0; i < Box.values().length; i++)
+			pickOnClick(BOX_BOX, 1, i);
+
 		Ui.bind(this, KeyEvent.VK_UP, "shopUp", () -> select(0, -1));
 		Ui.bind(this, KeyEvent.VK_DOWN, "shopDown", () -> select(0, +1));
 		Ui.bind(this, KeyEvent.VK_LEFT, "shopLeft", () -> select(-1, 0));
 		Ui.bind(this, KeyEvent.VK_RIGHT, "shopRight", () -> select(+1, 0));
 		Ui.bind(this, KeyEvent.VK_ENTER, "shopEnter", this::choose);
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "shopBack", onBack);
+	}
+
+	private void pickOnClick(Rectangle box, int c, int r) {
+		onClick(rowBounds(box, r), () -> {
+			col = c;
+			row = r;
+			choose();
+		});
 	}
 
 	private void select(int dc, int dr) {
@@ -93,17 +113,29 @@ class ShopScreen extends DesignPanel {
 				status = skin.label + " 를 구매해 장착했습니다";
 				Sfx.play(Sfx.Sound.COIN);
 			} else {
-				status = "코인이 부족합니다";
+				status = shortOf(skin.price);
 				Sfx.play(Sfx.Sound.LOCK);
 			}
 		} else {
 			Box box = Box.values()[row];
-			Item got = Wallet.buy(box);
-			status = got == null ? "코인이 부족합니다"
-					: box.label + " 에서 " + got.label + " 을(를) 얻었습니다!";
-			Sfx.play(got == null ? Sfx.Sound.LOCK : Sfx.Sound.COIN);
+			List<Attack> got = Wallet.buy(box);
+			status = got.isEmpty() ? shortOf(box.price)
+					: box.label + " 에서 " + names(got) + " 을(를) 얻었습니다!";
+			Sfx.play(got.isEmpty() ? Sfx.Sound.LOCK : Sfx.Sound.COIN);
 		}
 		repaint();
+	}
+
+	/** 얼마가 모자라는지 적어 준다. 그냥 '부족합니다' 보다 알아보기 쉽다. */
+	private String shortOf(int price) {
+		return "코인이 " + (price - Wallet.coins()) + " 부족합니다 (" + price + " 필요)";
+	}
+
+	private String names(List<Attack> items) {
+		StringBuilder out = new StringBuilder();
+		for (Attack a : items)
+			out.append(out.length() == 0 ? "" : ", ").append(a.label);
+		return out.toString();
 	}
 
 	// 그리기
@@ -132,7 +164,7 @@ class ShopScreen extends DesignPanel {
 		bag(g);
 
 		textCentered(g, status, STATUS_TOP, STATUS_SIZE, Color.WHITE, 0);
-		textCentered(g, "←→ 칸 옮기기   ↑↓ 고르기   Enter 선택   Esc 뒤로",
+		textCentered(g, "←→ 칸 옮기기   ↑↓ 고르기   Enter/클릭 선택   Esc 뒤로",
 				HINT_TOP, SMALL_SIZE, DIM_CREAM, 0);
 
 		gear(g);
@@ -170,15 +202,17 @@ class ShopScreen extends DesignPanel {
 		}
 	}
 
+	/** 아이템 전부를 격자로 늘어놓는다. 하나도 없는 것은 흐리게 적는다. */
 	private void bag(Graphics2D g) {
-		int x = BAG_BOX.x + PAD;
-		for (Item item : Item.values()) {
-			drawImage(g, image(item.icon),
-					new Rectangle(x, BAG_BOX.y + ICON_DROP, ICON, ICON));
-			int textX = x + ICON + 30;
-			text(g, item.label + " x" + Wallet.count(item), textX, BAG_BOX.y + 30, ROW_SIZE, Ui.CREAM);
-			text(g, item.desc, textX, BAG_BOX.y + 85, SMALL_SIZE, DIM_CREAM);
-			x += BAG_SLOT_W;
+		for (int i = 0; i < Attack.values().length; i++) {
+			Attack item = Attack.values()[i];
+			int x = BAG_BOX.x + PAD + (i % BAG_COLS) * BAG_CELL_W;
+			int y = BAG_BOX.y + BAG_TOP + (i / BAG_COLS) * BAG_CELL_H;
+			int count = Wallet.count(item);
+
+			drawImage(g, image(item.icon), new Rectangle(x, y, BAG_ICON, BAG_ICON));
+			text(g, item.label + " x" + count, x + BAG_ICON + 14, y + 10, BAG_SIZE,
+					count > 0 ? Ui.CREAM : DIM_CREAM);
 		}
 	}
 

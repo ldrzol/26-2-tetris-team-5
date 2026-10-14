@@ -2,7 +2,7 @@ package kr.ac.jbnu.se.tetris.ui;
 
 import kr.ac.jbnu.se.tetris.game.Board;
 import kr.ac.jbnu.se.tetris.game.GameBoard;
-import kr.ac.jbnu.se.tetris.item.Item;
+import kr.ac.jbnu.se.tetris.item.Attack;
 import kr.ac.jbnu.se.tetris.save.Ranking;
 import kr.ac.jbnu.se.tetris.save.Settings;
 import kr.ac.jbnu.se.tetris.save.Wallet;
@@ -10,6 +10,8 @@ import kr.ac.jbnu.se.tetris.save.Wallet;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.JLabel;
 import javax.swing.Timer;
@@ -18,6 +20,9 @@ import javax.swing.Timer;
 class SinglePanel extends DesignPanel {
 
 	private static final int TIME_LIMIT = 300;   // 5분
+
+	/** 이 레벨을 깨면 숨은 레벨(다방향 테트리스)이 열린다. */
+	private static final int HIDDEN_LEVEL = 5;
 
 	// Figma "Desktop - 6" 수치 (디자인 기준 픽셀)
 	private static final Rectangle BOARD = new Rectangle(700, 144, 600, 1200);
@@ -36,6 +41,7 @@ class SinglePanel extends DesignPanel {
 
 	/** 아이템 줄 (상자 안쪽 기준 오프셋) */
 	private static final int ITEM_X = 24, ITEM_TOP = 30, ITEM_GAP = 86;
+	private static final int ITEM_SLOTS = 2;   // Item 상자에 들어가는 줄 수. 그만큼만 키로 쓴다
 	private static final float ITEM_SIZE = 36f;
 
 	/** 아이템 줄 왼쪽의 그림. 그림이 없는 아이템도 글자 자리는 같아야 해서 칸을 늘 비워 둔다. */
@@ -81,10 +87,10 @@ class SinglePanel extends DesignPanel {
 		GameKeys.bind(this, 0, board);     // 설정한 조작키 (+ X, Shift 보조 키)
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
 		Ui.bind(this, KeyEvent.VK_P, "pause2", this::pause);
-		// 1 / 2 키로 가방에 있는 아이템을 쓴다
-		for (int i = 0; i < Item.values().length; i++) {
-			Item item = Item.values()[i];
-			Ui.bind(this, KeyEvent.VK_1 + i, "item" + i, () -> use(item));
+		// 1 / 2 키로 가방에 있는 아이템을 쓴다 (가진 것만 위에서부터 들어온다)
+		for (int i = 0; i < ITEM_SLOTS; i++) {
+			final int slot = i;
+			Ui.bind(this, KeyEvent.VK_1 + i, "item" + i, () -> use(slot));
 		}
 		onGear(this::pause);
 
@@ -102,15 +108,34 @@ class SinglePanel extends DesignPanel {
 		clock.stop();
 		board.setPaused(true);
 		frame.showLevelClear(level, board.score(), Wallet.awardLevel(level), () -> {
+			if (level >= HIDDEN_LEVEL) {            // 숨은 레벨: 다방향 테트리스로 넘어간다
+				frame.showScreen(MainFrame.HIDDEN);
+				return;
+			}
 			board.clearStack();
 			notice = "LEVEL " + (level + 1) + " 시작!";
 			resume();
 		});
 	}
 
-	/** 아이템을 쓰고 결과를 안내문에 적는다. */
-	private void use(Item item) {
+	/** 가진 아이템 중 slot 번째를 쓰고 결과를 안내문에 적는다. */
+	private void use(int slot) {
+		List<Attack> owned = owned();
+		if (slot >= owned.size()) {
+			say("쓸 아이템이 없습니다");
+			return;
+		}
+		Attack item = owned.get(slot);
 		say(board.useItem(item) ? item.label + " 사용!" : item.label + " 이(가) 없습니다");
+	}
+
+	/** 가방에 하나라도 있는 아이템. Attack 순서를 그대로 쓴다. */
+	private List<Attack> owned() {
+		List<Attack> list = new ArrayList<>();
+		for (Attack a : Attack.values())
+			if (Wallet.count(a) > 0)
+				list.add(a);
+		return list;
 	}
 
 	private void say(String message) {
@@ -188,20 +213,25 @@ class SinglePanel extends DesignPanel {
 		gear(g);
 	}
 
-	/** 가방에 든 아이템과 누르는 키를 적는다. 그림이 있는 아이템은 왼쪽에 아이콘도 그린다. */
+	/** 가진 아이템과 누르는 키를 적는다. 상자에 들어가는 만큼만 보여 주고 나머지는 수만 적는다. */
 	private void items(Graphics2D g) {
-		for (int i = 0; i < Item.values().length; i++) {
-			Item item = Item.values()[i];
-			int count = Wallet.count(item);
+		List<Attack> owned = owned();
+		for (int i = 0; i < ITEM_SLOTS; i++) {
 			int x = ITEM_BOX.x + ITEM_X;
 			int top = ITEM_BOX.y + ITEM_TOP + i * ITEM_GAP;
-
+			if (i >= owned.size()) {
+				text(g, (i + 1) + "  -", x, top, ITEM_SIZE, DIM_CREAM);
+				continue;
+			}
+			Attack item = owned.get(i);
 			drawImage(g, image(item.icon),
 					new Rectangle(x, top + ITEM_ICON_DROP, ITEM_ICON, ITEM_ICON));
-			text(g, (i + 1) + "  " + item.label + "  x" + count,
-					x + ITEM_ICON + ITEM_TEXT_GAP, top, ITEM_SIZE,
-					count > 0 ? Ui.CREAM : DIM_CREAM);
+			text(g, (i + 1) + "  " + item.label + "  x" + Wallet.count(item),
+					x + ITEM_ICON + ITEM_TEXT_GAP, top, ITEM_SIZE, Ui.CREAM);
 		}
+		if (owned.size() > ITEM_SLOTS)
+			text(g, "외 " + (owned.size() - ITEM_SLOTS) + "종", ITEM_BOX.x + ITEM_X,
+					ITEM_BOX.y + ITEM_TOP + ITEM_SLOTS * ITEM_GAP, ITEM_SIZE, DIM_CREAM);
 	}
 
 	private void tick() {

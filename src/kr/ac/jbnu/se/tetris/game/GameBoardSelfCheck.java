@@ -24,6 +24,8 @@ public class GameBoardSelfCheck {
 		scoreBoostDoublesPoints();
 		swapReplacesCurrentPiece();
 		forceRotateIgnoresNoRotate();
+		blockedSpawnEndsGame();
+		bombErasesRandomShape();
 		System.out.println("GameBoardSelfCheck: 통과");
 	}
 
@@ -199,6 +201,40 @@ public class GameBoardSelfCheck {
 
 		g.forceRotate();
 		check(!java.util.Arrays.equals(before, pieceCoords(g)), "저절로 도는 회전까지 막힘");
+	}
+
+	/** 새 블록 자리가 쌓인 블록에 막히면 옆으로 비껴 나지 말고 게임 오버여야 한다. */
+	static void blockedSpawnEndsGame() {
+		for (int i = 0; i < 20; i++) {          // 나오는 모양이 무작위라 여러 번 돌려 본다
+			GameBoard g = new GameBoard();
+			Tetrominoes[] shapes = new Tetrominoes[GameBoard.WIDTH * GameBoard.HEIGHT];
+			java.util.Arrays.fill(shapes, Tetrominoes.NoShape);
+			int top = GameBoard.HEIGHT - 1;
+			for (int x = 5; x < GameBoard.WIDTH; x++)   // 블록 나오는 자리만 막고 왼쪽은 비워 둔다
+				shapes[top * GameBoard.WIDTH + x] = Tetrominoes.GarbageShape;
+			g.applyRemoteState(shapes, new int[shapes.length]);
+
+			check(!g.spawn(), "자리가 막혔는데 블록이 나옴: " + g.currentType());
+			check(g.isGameOver(), "자리가 막혔는데 게임이 안 끝남 (x=" + g.getCurX() + ")");
+		}
+	}
+
+	/** 폭탄: 쌓인 칸을 무작위 모양(한 칸~3x3, 일자 4칸)만큼 지워야 한다. */
+	static void bombErasesRandomShape() {
+		for (int i = 0; i < 30; i++) {
+			GameBoard g = new GameBoard();
+			Tetrominoes[] shapes = new Tetrominoes[GameBoard.WIDTH * GameBoard.HEIGHT];
+			java.util.Arrays.fill(shapes, Tetrominoes.GarbageShape);
+			g.applyRemoteState(shapes, new int[shapes.length]);
+
+			int before = countFilled(g);
+			check(g.explode(), "쌓인 블록이 가득인데 터뜨릴 자리를 못 찾음");
+			int erased = before - countFilled(g);
+			check(erased >= 1 && erased <= 9, "지운 칸 수가 폭탄 모양을 벗어남: " + erased);
+		}
+
+		GameBoard empty = new GameBoard();
+		check(!empty.explode(), "빈 판에서 폭탄이 터졌다고 함");
 	}
 
 	/** 판에 쌓여 있는 칸 수. */

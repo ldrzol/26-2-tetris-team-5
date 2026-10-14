@@ -1,7 +1,6 @@
 package kr.ac.jbnu.se.tetris.game;
 
 import kr.ac.jbnu.se.tetris.item.Attack;
-import kr.ac.jbnu.se.tetris.item.Item;
 
 import kr.ac.jbnu.se.tetris.Resources;
 import java.util.ArrayList;
@@ -215,6 +214,12 @@ public class Gimmick {
         return shapes[new Random().nextInt(shapes.length)];
     }
 
+    /** 폭탄이 한 번 터지는 모양. 한 칸 / 십자 / 정사각 / 일자 4줄 중 하나를 고른다. */
+    static int[][] randomBlastOffsets() {
+        EraseShape[] shapes = { new EraseDot(), new EraseCross(), new EraseSquare(), new EraseLine() };
+        return shapes[new Random().nextInt(shapes.length)].offsets();
+    }
+
     /**
      * 자가 점검. java -ea 로 실행한다.
      *
@@ -236,10 +241,6 @@ public class Gimmick {
         for (GimmickEffect e : all)
             assert e.icon() == null || Resources.find(e.icon()) != null
                     : e.name() + " 의 아이콘 파일이 없다: " + e.icon();
-
-        for (Item item : Item.values())
-            assert item.icon == null || Resources.find(item.icon) != null
-                    : item.label + " 의 아이콘 파일이 없다: " + item.icon;
 
         System.out.println("ok");
     }
