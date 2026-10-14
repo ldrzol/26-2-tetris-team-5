@@ -154,11 +154,8 @@ abstract class DesignPanel extends JPanel {
 	 * x, y, size, gap 은 모두 디자인 기준 픽셀이다.
 	 */
 	void gimmickIcons(Graphics2D g, Gimmick gimmick, int x, int y, int size, int gap) {
-		for (GimmickEffect effect : gimmick.activeEffects()) {
-			Image img = image(effect.icon());
-			if (img == null)
-				continue;
-			drawImage(g, img, new Rectangle(x, y, size, size));
+		for (String path : gimmick.activeIcons()) {
+			drawImage(g, image(path), new Rectangle(x, y, size, size));
 			x += size + gap;
 		}
 	}

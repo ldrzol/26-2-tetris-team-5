@@ -13,7 +13,9 @@ public class Gimmick {
 
     private static final int MAX_ACTIVE = 3;   // 동시에 켜져 있을 수 있는 기믹 수. 넘으면 가장 오래된 것이 꺼진다.
 
-    // 전체 기믹 목록. 새 기믹은 여기에 한 줄만 추가한다.
+    // 레벨이 오를 때 무작위로 뽑는 기믹 목록. 새 기믹은 여기에 한 줄만 추가한다.
+    // 아이템 전용 효과(잠그기, 점수 2배 등)는 넣지 않는다. 혼자 하는 판에서 저절로
+    // 걸리면 곤란하기 때문이다.
     private final List<GimmickEffect> pool = Arrays.asList(
             new SpeedUp(),
             new FadeBlocks(),
@@ -23,6 +25,8 @@ public class Gimmick {
             new FlipBoard(),
             new PlusLine(),
             new CoverScreen(),
+            new RandomKeys(),
+            new SpinBlock(),
             new EraseDot(),
             new EraseCross(),
             new EraseSquare(),
@@ -57,10 +61,21 @@ public class Gimmick {
     void add(GimmickEffect effect) {
         if (active.contains(effect)) return;
         if (active.size() >= MAX_ACTIVE)
-            available.add(active.remove(0));
+            remove(active.get(0));
         available.remove(effect);
         active.add(effect);
         effect.onActivate(game);
+    }
+
+    /**
+     * 기믹을 끈다. 레벨에서 뽑는 기믹이면 다시 뽑힐 수 있게 돌려 놓고,
+     * 아이템으로 생긴 일회성 효과면 그냥 버린다.
+     */
+    private void remove(GimmickEffect effect) {
+        if (!active.remove(effect))
+            return;
+        if (pool.contains(effect))
+            available.add(effect);
     }
 
     /** 새 게임을 시작할 때 초기화한다. */
@@ -71,9 +86,18 @@ public class Gimmick {
         appliedLevel = 1;
     }
 
-    /** 1초마다 Board 가 호출한다. */
+    /** 1초마다 Board 가 호출한다. 시간이 다 된 효과는 여기서 꺼진다. */
     public void onSecond() {
-        for (GimmickEffect e : active) e.onSecond(game);
+        for (GimmickEffect e : new ArrayList<>(active)) {   // 도는 중에 목록이 바뀔 수 있다
+            e.onSecond(game);
+            if (e.expired())
+                remove(e);
+        }
+    }
+
+    /** 새 블록이 나올 때마다 GameBoard 가 호출한다. (블록마다 다시 뽑는 기믹용) */
+    public void onSpawn() {
+        for (GimmickEffect e : active) e.onSpawn(game);
     }
 
     /** 켜진 기믹들을 차례로 거쳐 입력을 바꾼다. */
@@ -98,6 +122,18 @@ public class Gimmick {
         return false;
     }
 
+    /** true 면 새 블록이 나오지 않는다. */
+    public boolean blocksSpawn() {
+        for (GimmickEffect e : active) if (e.blocksSpawn()) return true;
+        return false;
+    }
+
+    /** true 면 블록 두 개가 한 덩어리로 같이 떨어진다. */
+    public boolean doublesPiece() {
+        for (GimmickEffect e : active) if (e.doublesPiece()) return true;
+        return false;
+    }
+
     /** 화면을 덮는 비율(0~1). 켜진 기믹 중 가장 큰 값. */
     public double coverRatio() {
         double r = 0;
@@ -111,19 +147,89 @@ public class Gimmick {
         return f;
     }
 
-    /** 지금 켜져 있는 기믹들 (오래된 순). 화면에 아이콘이나 이름을 그릴 때 쓴다. */
-    List<GimmickEffect> activeEffects() {
-        return java.util.Collections.unmodifiableList(active);
+    /** 얻는 점수에 곱해진다. */
+    public double scoreFactor() {
+        double f = 1.0;
+        for (GimmickEffect e : active) f *= e.scoreFactor();
+        return f;
+    }
+
+    /**
+     * 지금 켜져 있는 기믹들의 아이콘 경로 (오래된 순). 그림이 없는 기믹은 빠진다.
+     *
+     * 화면 쪽이 기믹 클래스를 직접 알 필요가 없도록 경로만 넘긴다.
+     */
+    public List<String> activeIcons() {
+        List<String> icons = new ArrayList<>();
+        for (GimmickEffect e : active)
+            if (e.icon() != null)
+                icons.add(e.icon());
+        return icons;
+    }
+
+    /**
+     * 아이템 효과를 이 보드에 건다. 걸 기믹이 없는 아이템(교환)이면 아무 일도 하지 않는다.
+     *
+     * 바깥에서 기믹 클래스를 직접 만들지 않아도 되도록 여기서 한 번에 처리한다.
+     */
+    public void apply(Attack attack) {
+        GimmickEffect effect = effectFor(attack);
+        if (effect != null)
+            add(effect);
+    }
+
+    /**
+     * 아이템 하나가 거는 기믹을 만든다. 쓸 때마다 새로 만들어야 남은 시간이 따로 돈다.
+     *
+     * 블록 교환(SWAP)은 그 자리에서 한 번에 끝나므로 걸 기믹이 없어 null 이다.
+     */
+    static GimmickEffect effectFor(Attack attack) {
+        switch (attack) {
+            case BOMB:        return randomBomb();
+            case TINY:        return new EraseDot();
+            case INK:         return new CoverScreen();
+            case SPEED:       return new SpeedUp();
+            case REVERSE:     return new ReverseKeys();
+            case LOCK:        return new NoSpawn();
+            case TWIN:        return new TwinPieces();
+            case SCORE_X2:    return new ScoreBoost();
+            case REST:        return new RestSpawn();
+            case RANDOM_KEYS: return new RandomKeys();
+            case SPIN:        return new SpinBlock();
+            case FADE:        return new FadeBlocks();
+            case GRAVITY:     return new FlipBoard();
+            case FLOOR:       return new PlusLine();
+            case INVISIBLE:   return new InvisiblePiece();
+            case NO_ROTATE:   return new NoRotate();
+            default:          return null;
+        }
+    }
+
+    /** 폭탄은 터지는 모양을 무작위로 고른다. (한 칸짜리는 1X1 아이템이 따로 있다) */
+    private static GimmickEffect randomBomb() {
+        GimmickEffect[] shapes = { new EraseCross(), new EraseSquare(), new EraseLine() };
+        return shapes[new Random().nextInt(shapes.length)];
     }
 
     /**
      * 자가 점검. java -ea 로 실행한다.
      *
      * 아이콘은 없어도 그냥 안 그려지기만 해서 오타를 눈으로 잡기 어렵다. 그래서
-     * 적어 둔 경로가 실제로 있는지만 확인한다. (게임은 돌리지 않는다)
+     * 적어 둔 경로가 실제로 있는지, 아이템마다 거는 기믹이 있는지를 확인한다.
      */
     public static void main(String[] args) {
-        for (GimmickEffect e : new Gimmick(null).pool)
+        List<GimmickEffect> all = new ArrayList<>(new Gimmick(null).pool);
+
+        for (Attack a : Attack.values()) {
+            assert Gimmick.class.getResource(a.icon) != null
+                    : a.label + " 의 아이콘 파일이 없다: " + a.icon;
+            GimmickEffect e = effectFor(a);
+            assert e != null || a == Attack.SWAP : a.label + " 에 대응하는 기믹이 없다";
+            if (e != null)
+                all.add(e);
+        }
+
+        for (GimmickEffect e : all)
             assert e.icon() == null || Gimmick.class.getResource(e.icon()) != null
                     : e.name() + " 의 아이콘 파일이 없다: " + e.icon();
 
@@ -155,6 +261,12 @@ interface GimmickEffect {
     /** 켜져 있는 동안 1초마다 호출된다. */
     default void onSecond(GameBoard game) {}
 
+    /** 새 블록이 나올 때마다 호출된다. (블록마다 다시 뽑는 기믹용) */
+    default void onSpawn(GameBoard game) {}
+
+    /** true 면 효과가 끝난 것으로 보고 Gimmick 이 꺼 준다. 시간 제한이 없으면 늘 false. */
+    default boolean expired() { return false; }
+
     /** 입력 변환. 바꿀 게 없으면 그대로 돌려준다. */
     default Gimmick.Input remap(Gimmick.Input in) { return in; }
 
@@ -167,11 +279,41 @@ interface GimmickEffect {
     /** true 면 판이 180도 돌아간다. (화면만 돌고 게임 규칙은 그대로) */
     default boolean flipsBoard() { return false; }
 
+    /** true 면 새 블록이 나오지 않는다. */
+    default boolean blocksSpawn() { return false; }
+
+    /** true 면 블록 두 개가 한 덩어리로 같이 떨어진다. */
+    default boolean doublesPiece() { return false; }
+
     /** 낙하 간격에 곱해진다. 1.0보다 작을수록 빨라진다. */
     default double speedFactor() { return 1.0; }
 
+    /** 얻는 점수에 곱해진다. */
+    default double scoreFactor() { return 1.0; }
+
     /** 화면 위를 덮는 비율(0~1). 0이면 안 덮는다. */
     default double coverRatio() { return 0; }
+}
+
+/**
+ * 시간이 지나면 저절로 꺼지는 효과의 공통 부분. 아이템으로 거는 효과들이 쓴다.
+ *
+ * 남은 시간은 1초 타이머로 센다. onActivate 에서 다시 채우므로 같은 아이템을
+ * 또 맞으면 시간이 새로 시작한다.
+ */
+abstract class TimedEffect implements GimmickEffect {
+
+    private int left;
+
+    /** 몇 초 동안 이어질지. */
+    abstract int seconds();
+
+    /** 아직 효과가 살아 있는지. */
+    boolean running() { return left > 0; }
+
+    @Override public void onActivate(GameBoard game) { left = seconds(); }
+    @Override public void onSecond(GameBoard game) { left--; }
+    @Override public boolean expired() { return left <= 0; }
 }
 
 /** 낙하 간격을 절반으로 줄인다. */
@@ -230,6 +372,51 @@ class ReverseKeys implements GimmickEffect {
     }
 }
 
+/**
+ * 블록이 바뀔 때마다 좌우와 회전을 뒤집을지 말지를 새로 뽑는다.
+ *
+ * ReverseKeys 와 달리 늘 뒤집히지는 않아서, 블록이 나올 때마다 눌러 보고 알아내야 한다.
+ */
+class RandomKeys implements GimmickEffect {
+
+    private final Random rand = new Random();
+    private boolean swapMove, swapRotate;
+
+    @Override public String name() { return "RANDOM KEYS"; }
+    @Override public String icon() { return "images/items/gim_randomkey.png"; }
+
+    @Override public void onActivate(GameBoard game) { reroll(); }
+    @Override public void onSpawn(GameBoard game) { reroll(); }
+
+    private void reroll() {
+        swapMove = rand.nextBoolean();
+        swapRotate = rand.nextBoolean();
+    }
+
+    @Override
+    public Gimmick.Input remap(Gimmick.Input in) {
+        switch (in) {
+            case LEFT:         return swapMove ? Gimmick.Input.RIGHT : in;
+            case RIGHT:        return swapMove ? Gimmick.Input.LEFT : in;
+            case ROTATE_LEFT:  return swapRotate ? Gimmick.Input.ROTATE_RIGHT : in;
+            case ROTATE_RIGHT: return swapRotate ? Gimmick.Input.ROTATE_LEFT : in;
+            default:           return in;
+        }
+    }
+}
+
+/**
+ * 블록이 저절로 돌아간다. 하드 드롭으로 떨어뜨리면 그 순간의 방향 그대로 굳는다.
+ *
+ * ponytail: 1초 타이머에 얹어서 1초에 한 번 돌린다. 더 빙글빙글 돌려야 하면
+ * Board 에 짧은 타이머를 하나 더 두고 forceRotate() 를 부르면 된다.
+ */
+class SpinBlock implements GimmickEffect {
+    @Override public String name() { return "SPIN"; }
+    @Override public String icon() { return "images/items/gim_rotfix.png"; }
+    @Override public void onSecond(GameBoard game) { game.forceRotate(); }
+}
+
 /** 떨어지는 블록과 고스트를 숨긴다. 단, 블록이 나온 첫 1초 동안은 보인다. */
 class InvisiblePiece implements GimmickEffect {
     private static final long VISIBLE_MS = 1000;
@@ -261,7 +448,6 @@ class PlusLine implements GimmickEffect {
     private final Random rand = new Random();
 
     @Override public String name() { return "PLUS LINE"; }
-
     @Override public String icon() { return "images/items/gim_floor.png"; }
 
     @Override
@@ -284,6 +470,36 @@ class CoverScreen implements GimmickEffect {
     @Override public void onActivate(GameBoard game) { sec = 0; }
     @Override public void onSecond(GameBoard game) { sec++; }
     @Override public double coverRatio() { return (sec % 5) < 3 ? 0.5 : 0; }
+}
+
+/** [아이템] 잠시 새 블록이 나오지 않는다. 상대를 묶어 두는 자물쇠. */
+class NoSpawn extends TimedEffect {
+    @Override int seconds() { return 6; }
+    @Override public String name() { return "LOCKED"; }
+    @Override public String icon() { return "images/items/atk_block.png"; }
+    @Override public boolean blocksSpawn() { return running(); }
+}
+
+/** [아이템] 블록을 멈추는 것은 같고, 내가 한숨 돌리려고 쓴다. 이름과 그림만 다르다. */
+class RestSpawn extends NoSpawn {
+    @Override public String name() { return "REST"; }
+    @Override public String icon() { return "images/items/atk_nopiece.png"; }
+}
+
+/** [아이템] 잠시 얻는 점수가 두 배가 된다. */
+class ScoreBoost extends TimedEffect {
+    @Override int seconds() { return 15; }
+    @Override public String name() { return "SCORE x2"; }
+    @Override public String icon() { return "images/items/atk_double.png"; }
+    @Override public double scoreFactor() { return running() ? 2.0 : 1.0; }
+}
+
+/** [아이템] 잠시 블록이 두 개씩 한 덩어리로 떨어진다. */
+class TwinPieces extends TimedEffect {
+    @Override int seconds() { return 12; }
+    @Override public String name() { return "TWIN"; }
+    @Override public String icon() { return "images/items/atk_twin.png"; }
+    @Override public boolean doublesPiece() { return running(); }
 }
 
 /** 일정 시간마다 쌓인 블록 하나를 중심으로 모양대로 지우는 기믹의 공통 부분. */
