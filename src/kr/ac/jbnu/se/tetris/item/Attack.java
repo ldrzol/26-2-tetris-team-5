@@ -11,7 +11,6 @@ public enum Attack {
 	// 방해 아이템 (상대에게)
 	BOMB("폭탄", "atk_bomb", false),
 	TINY("1X1 폭탄", "atk_tiny", false),
-	INK("먹물", "atk_ink", false),
 	SPEED("가속", "atk_speed", false),
 	REVERSE("조작 반전", "atk_reverse", false),
 	LOCK("블록 잠그기", "atk_block", false),
