@@ -93,8 +93,8 @@ public final class Wallet {
 		return got;
 	}
 
-	/** 피버 타임 보상처럼 공짜로 받는 경우. */
-	static Attack add(Attack item) {
+	/** 피버 타임 보상이나 대전 중 점수 보상처럼 공짜로 받는 경우. */
+	public static Attack add(Attack item) {
 		bag[item.ordinal()]++;
 		save();
 		return item;

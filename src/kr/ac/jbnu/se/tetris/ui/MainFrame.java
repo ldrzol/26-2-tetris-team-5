@@ -21,6 +21,7 @@ public class MainFrame extends JFrame {
 	static final String LOBBY = "lobby";       // Figma Desktop - 12
 	static final String SINGLE = "single";     // Figma Desktop - 6
 	static final String VERSUS = "versus";     // Figma Desktop - 9
+	static final String LOCAL = "local";       // Figma Desktop - 9 (한 PC 에서 둘이)
 	static final String PRACTICE = "practice"; // Figma Desktop - 9 (상대가 AI)
 	static final String SETTINGS = "settings"; // Figma 환경 설정 화면
 	static final String RANKING = "ranking";   // Figma 랭킹 화면
@@ -81,8 +82,8 @@ public class MainFrame extends JFrame {
 		switch (name) {
 			case MULTI:
 				return new MenuScreen(new String[] { "멀티 모드" }, new float[] { 128f }, 252,
-						new String[] { "2인 대전", "AI 대전" },
-						i -> showScreen(i == 0 ? LOBBY : AI_LEVEL));
+						new String[] { "2인 대전", "한 화면 2인", "AI 대전" },
+						i -> showScreen(i == 0 ? LOBBY : i == 1 ? LOCAL : AI_LEVEL));
 			case AI_LEVEL:
 				return new MenuScreen(new String[] { "AI 대전" }, new float[] { 128f }, 252,
 						new String[] { "쉬움", "보통", "어려움" },
@@ -102,6 +103,8 @@ public class MainFrame extends JFrame {
 				return new HiddenPanel(this);
 			case PRACTICE:
 				return new VersusPanel(this, PRACTICE, true);   // 오른쪽 보드를 AI 가 조종한다
+			case LOCAL:
+				return new VersusPanel(this, LOCAL, false);     // 두 보드를 한 PC 에서 둘이 잡는다
 			default:
 				return new MenuScreen(new String[] { "TETRIS" }, new float[] { 250f }, 274,
 						new String[] { "1인 모드", "멀티 모드", "상점" },
@@ -131,6 +134,15 @@ public class MainFrame extends JFrame {
 		showOverlay(new PickOverlay(title, PickOverlay.pieces(), shape -> {
 			clearOverlay();
 			onPick.accept(shape);
+		}));
+	}
+
+	/** 대전 시작에서 가방에 있는 아이템 하나를 고르는 덮개. */
+	void showPickItem(String title, kr.ac.jbnu.se.tetris.item.Attack[] choices,
+			java.util.function.Consumer<kr.ac.jbnu.se.tetris.item.Attack> onPick) {
+		showOverlay(new PickOverlay(title, choices, item -> {
+			clearOverlay();
+			onPick.accept(item);
 		}));
 	}
 
