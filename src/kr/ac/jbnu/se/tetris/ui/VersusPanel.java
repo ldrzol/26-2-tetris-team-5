@@ -11,6 +11,8 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import javax.swing.JLabel;
@@ -30,7 +32,8 @@ import kr.ac.jbnu.se.tetris.network.PeerConnection;
  *   - 같은 PC 의 두 번째 보드
  *   - 다른 PC 에서 보내온 화면을 그대로 비추는 보드 (네트워크 2인 대전)
  *
- * 네트워크 대전에서만 아이템을 쓴다. 손에 세 개까지 들고 1~3 키로 고른다.
+ * 아이템은 네트워크 대전과 한 화면 2인 대전에서 쓴다. 손패는 플레이어마다 따로 있고,
+ * 상점에서 산 가방(Wallet)에서 올라온다. 자리를 고른 뒤 사용 키를 누르면 가방에서 빠진다.
  */
 class VersusPanel extends DesignPanel {
 
@@ -73,15 +76,30 @@ class VersusPanel extends DesignPanel {
 	/** Level 상자 아래에 켜진 기믹 아이콘을 한 줄로 둔다. (동시에 최대 3개) */
 	private static final int GIMMICK_DROP = 16, GIMMICK_ICON = 64, GIMMICK_GAP = 10;
 
+	/** 기믹 아이콘 줄 아래에 콤보 표시. (두 번째 연속 삭제부터) */
+	private static final int COMBO_DROP = 102;
+	private static final float COMBO_SIZE = 40f;
+
 	private static final Rectangle TIME_TAB = new Rectangle(906, 711, 190, 62);
 	private static final Rectangle TIME_BOX = new Rectangle(864, 773, 273, 100);
 
-	// 두 보드 사이 빈 자리에 아이템 칸을 둔다. (네트워크 대전에서만 그린다)
-	private static final Rectangle ITEM_TAB = new Rectangle(864, 900, 190, 62);
-	private static final Rectangle ITEM_BOX = new Rectangle(864, 962, 273, 300);
-	private static final int ITEM_ROW_TOP = 20, ITEM_ROW_H = 90;
-	private static final int ITEM_ICON = 64, ITEM_PAD = 24, ITEM_TEXT_GAP = 14;
-	private static final float ITEM_SIZE = 30f;
+	// 두 보드 사이 빈 자리에 아이템 칸을 둔다. 위가 1P, 아래가 2P 것이다.
+	private static final Rectangle[] ITEM_TABS = {
+			new Rectangle(864, 900, 190, 62), new Rectangle(864, 1150, 190, 62) };
+	private static final Rectangle[] ITEM_BOXES = {
+			new Rectangle(864, 962, 273, 170), new Rectangle(864, 1212, 273, 170) };
+
+	private static final int ITEM_SLOT = 74, ITEM_SLOT_GAP = 10, ITEM_SLOT_TOP = 14;
+	private static final int ITEM_SLOT_BORDER = 4, ITEM_ICON = 64;
+	private static final int ITEM_LABEL_DROP = 94, ITEM_HINT_DROP = 128;
+	private static final float ITEM_SIZE = 28f, ITEM_HINT_SIZE = 22f;
+
+	/** 손패를 고르는 키와 쓰는 키. [0] = 1p, [1] = 2p. 고르는 키 수는 HAND_SIZE 와 같다. */
+	private static final int[][] SELECT_KEYS = {
+			{ KeyEvent.VK_1, KeyEvent.VK_2, KeyEvent.VK_3 },
+			{ KeyEvent.VK_7, KeyEvent.VK_8, KeyEvent.VK_9 } };
+	private static final int[] USE_KEYS = { KeyEvent.VK_F, KeyEvent.VK_L };
+	private static final String[] ITEM_HINTS = { "선택 1~3 · 사용 F", "선택 7~9 · 사용 L" };
 
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 	private static final int VS_TOP = 561, VS_HEIGHT = 80;
@@ -98,13 +116,30 @@ class VersusPanel extends DesignPanel {
 	private final PeerConnection connection;
 	private final int fee;
 
-	private final Attack[] hand = new Attack[HAND_SIZE];
+	/** 손패. [0] = 왼쪽(나), [1] = 오른쪽(상대). 플레이어마다 따로 든다. */
+	private final Attack[][] hands = new Attack[2][HAND_SIZE];
+
+	/** 지금 고른 손패 자리. 사용 키를 누르면 이 자리를 쓴다. */
+	private final int[] picked = new int[2];
+
+	/** 다음 아이템을 받을 점수. 플레이어마다 따로 센다. */
+	private final int[] nextItemScore = { ITEM_SCORE, ITEM_SCORE };
+
+	/** 이번 판에 쓸 아이템 더미. 가방에서 옮겨 와 손패에 나눠 준다. */
+	private final List<Attack> stock = new ArrayList<>();
+
 	private final Random random = new Random();
+
+	/** 한 화면에서 둘이 잡는 판인지. 오른쪽 보드도 사람이 조종한다. */
+	private final boolean local;
+
+	/** 아이템을 쓰는 판인지. AI 대전에서는 쓰지 않는다. */
+	private final boolean useItems;
 
 	/** 상대 점수. 네트워크 대전에서는 받아 온 값을 쓴다. */
 	private int rivalScore = 0;
+	private int rivalCombo = -1;
 	private boolean rivalOver = false;
-	private int nextItemScore = ITEM_SCORE;
 	private boolean finished = false;
 
 	private String timeText = "05:00";
@@ -128,14 +163,22 @@ class VersusPanel extends DesignPanel {
 		this.kind = kind;
 		this.connection = connection;
 		this.fee = fee;
+		this.local = connection == null && !aiRival;
+		this.useItems = connection != null || local;
 
 		add(playerBoard);
 		add(rivalBoard);
 
 		GameKeys.bind(this, 0, playerBoard);   // 설정한 조작키 (+ X, Shift 보조 키)
+		if (local)
+			GameKeys.bind(this, 1, rivalBoard);   // 2p 조작키 (기본 WASD)
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
 		Ui.bind(this, KeyEvent.VK_P, "pause2", this::pause);
 		onGear(this::pause);
+
+		playerBoard.onFever(() -> fever(0));
+		if (local)
+			rivalBoard.onFever(() -> fever(1));
 
 		playerBoard.start();
 		rivalBoard.start();
@@ -145,6 +188,15 @@ class VersusPanel extends DesignPanel {
 		else if (aiRival)
 			new AIplayer(rivalBoard, frame.aiLevel()).start();
 
+		if (useItems) {
+			bindItemKeys(0);
+			if (local)
+				bindItemKeys(1);
+			loadStock();
+			// 덮개는 화면이 올라온 뒤에 띄워야 한다. 지금 띄우면 화면을 갈아 끼울 때 치워진다.
+			SwingUtilities.invokeLater(this::openingPick);
+		}
+
 		clock.start();
 	}
 
@@ -153,11 +205,6 @@ class VersusPanel extends DesignPanel {
 	/** 상대 보드는 받아 온 화면을 비추기만 하므로 멈춰 둔다. */
 	private void startNetworkPlay() {
 		rivalBoard.setPaused(true);
-
-		for (int i = 0; i < HAND_SIZE; i++) {
-			final int slot = i;
-			Ui.bind(this, KeyEvent.VK_1 + i, "item" + i, () -> useItem(slot));
-		}
 
 		connection.setListener(this::onMessage);
 		new Timer(SNAPSHOT_MS, e -> sendSnapshot()).start();
@@ -169,7 +216,8 @@ class VersusPanel extends DesignPanel {
 		GameBoard game = playerBoard.getGame();
 		game.writeVisible(cells, colors);
 		connection.send(new BoardStateMessage(cells, colors,
-				game.getLinesRemoved(), game.getScore(), game.isGameOver()));
+				game.getLinesRemoved(), game.getScore(), game.isGameOver(), hands[0].clone(),
+				game.getCombo()));
 	}
 
 	private void onMessage(Object message) {
@@ -181,6 +229,9 @@ class VersusPanel extends DesignPanel {
 
 	private void receiveState(BoardStateMessage state) {
 		rivalBoard.getGame().applyRemoteState(state.cells, state.colors);
+		if (state.hand != null)
+			hands[1] = state.hand;          // 상대 가방을 오른쪽에 그대로 보여 준다
+		rivalCombo = state.combo;
 		rivalScore = state.score;
 		rivalOver = state.gameOver;
 		rivalBoard.repaint();
@@ -214,53 +265,196 @@ class VersusPanel extends DesignPanel {
 
 	// 아이템
 
-	/** 빈 자리에 아이템을 하나 넣는다. 손이 가득 차 있으면 그냥 버린다. */
-	private void addItem() {
-		for (int i = 0; i < hand.length; i++) {
-			if (hand[i] == null) {
-				hand[i] = Attack.random(random);
-				repaint();
-				return;
-			}
+	/** 손패를 고르는 키·사용 키를 연결한다. 칸을 눌러도 골라진다. */
+	private void bindItemKeys(int player) {
+		for (int i = 0; i < HAND_SIZE; i++) {
+			final int slot = i;
+			Ui.bind(this, SELECT_KEYS[player][i], "pick" + player + slot, () -> select(player, slot));
+			onClick(itemSlot(ITEM_BOXES[player], slot), () -> select(player, slot));
 		}
+		Ui.bind(this, USE_KEYS[player], "use" + player, () -> useItem(player, picked[player]));
 	}
 
-	/** 고른 자리의 아이템을 쓴다. 빈 자리면 아무 일도 하지 않는다. */
-	private void useItem(int slot) {
-		if (finished || hand[slot] == null)
+	private void select(int player, int slot) {
+		picked[player] = slot;
+		repaint();
+	}
+
+	/** 가방에 있는 것을 이번 판에 쓸 더미로 옮긴다. 실제로 쓸 때 가방에서 뺀다. */
+	private void loadStock() {
+		for (Attack item : Attack.values())
+			for (int n = Wallet.count(item); n > 0; n--)
+				stock.add(item);
+	}
+
+	/**
+	 * 더미에 남은 것을 손패 빈 자리에 번갈아 나눠 준다.
+	 *
+	 * 한 개는 한 사람에게만 간다. 그래서 1P 가 쓴다고 2P 손패가 비지 않는다.
+	 */
+	private void dealFromStock() {
+		deal(hands, stock, local ? 2 : 1);
+		repaint();
+	}
+
+	/** 나눠 주기만 하는 부분. 자가 점검에서도 쓴다. */
+	private static void deal(Attack[][] hands, List<Attack> stock, int players) {
+		for (int slot = 0; slot < HAND_SIZE; slot++)
+			for (int p = 0; p < players; p++)
+				if (hands[p][slot] == null && !stock.isEmpty())
+					hands[p][slot] = stock.remove(0);
+	}
+
+	/** 판을 멈추고 들고 시작할 아이템을 고르게 한다. 한 화면 2인은 1P, 2P 차례로 고른다. */
+	private void openingPick() {
+		if (stock.isEmpty())
+			return;                     // 가방이 비어 있으면 고를 것도 나눠 줄 것도 없다
+		pauseBoards();
+		pickFor(0);
+	}
+
+	private void pickFor(int player) {
+		Attack[] choices = stockChoices();
+		if (choices.length == 0) {      // 앞 사람이 마지막 하나를 가져갔다
+			afterPick(player);
+			return;
+		}
+		frame.showPickItem((player + 1) + "P - 들고 시작할 아이템을 고르세요", choices, item -> {
+			stock.remove(item);         // 고른 한 개는 이 사람 것이다
+			hands[player][0] = item;
+			picked[player] = 0;
+			afterPick(player);
+		});
+	}
+
+	private void afterPick(int player) {
+		if (player == 0 && local) {
+			pickFor(1);
+			return;
+		}
+		dealFromStock();
+		resume();
+	}
+
+	/**
+	 * 더미에 남아 있는 아이템 종류.
+	 *
+	 * ponytail: 덮개에 들어가는 앞의 PickOverlay.MAX 종까지만 보여 준다.
+	 * 더 많이 가진 사람이 뒤쪽 아이템도 고르고 싶어지면 쪽 넘기기를 붙인다.
+	 */
+	private Attack[] stockChoices() {
+		List<Attack> kinds = new ArrayList<>();
+		for (Attack item : stock)
+			if (!kinds.contains(item) && kinds.size() < PickOverlay.MAX)
+				kinds.add(item);
+		return kinds.toArray(new Attack[0]);
+	}
+
+	/** 점수 보상으로 받는 아이템. 가방에 넣고 손패의 빈 자리에도 올려 둔다. */
+	private void addItem(int player) {
+		Attack item = Wallet.add(Attack.random(random));
+		for (int i = 0; i < HAND_SIZE; i++)
+			if (hands[player][i] == null) {
+				hands[player][i] = item;
+				return;
+			}
+	}
+
+	/** 고른 자리의 아이템을 쓴다. 가방에 없으면 자리만 비운다. */
+	private void useItem(int player, int slot) {
+		Attack attack = hands[player][slot];
+		if (finished || attack == null)
 			return;
 
-		Attack attack = hand[slot];
-		hand[slot] = null;
+		hands[player][slot] = null;
+		// 손패의 한 개는 한 사람 것이라 가방에 반드시 남아 있다. 그래도 없으면 그냥 넘어간다.
+		if (!Wallet.use(attack)) {
+			repaint();
+			return;
+		}
 		Sfx.play(Sfx.Sound.ITEM);
 
+		if (attack.self)
+			board(player).getGame().getGimmick().apply(attack);
+		else if (connection != null)
+			sendItem(attack);
+		else
+			hitRival(player, attack);
+		repaint();
+	}
+
+	private void sendItem(Attack attack) {
 		if (attack == Attack.SWAP) {
 			// 내 블록을 보내기만 하고, 상대가 쥔 것은 답장으로 받는다. 받아 둔 화면에서
 			// 꺼내 쓰면 최대 SNAPSHOT_MS 만큼 옛날 것이라 교환이 어긋난다.
 			connection.send(new ItemMessage(Attack.SWAP, playerBoard.getGame().currentType(), false));
-		} else if (attack.self) {
-			playerBoard.getGame().getGimmick().apply(attack);
 		} else {
 			connection.send(new ItemMessage(attack));
 		}
-		repaint();
+	}
+
+	/** 한 화면 2인: 상대 보드에 바로 건다. 주고받을 것이 없으므로 교환도 그 자리에서 한다. */
+	private void hitRival(int player, Attack attack) {
+		GameBoard mine = board(player).getGame();
+		GameBoard theirs = board(1 - player).getGame();
+
+		if (attack == Attack.SWAP) {
+			Tetrominoes keep = theirs.currentType();
+			if (theirs.replaceCurrentPiece(mine.currentType()))
+				mine.replaceCurrentPiece(keep);
+		} else {
+			theirs.getGimmick().apply(attack);
+		}
+		board(1 - player).repaint();
+	}
+
+	private Board board(int player) {
+		return player == 0 ? playerBoard : rivalBoard;
+	}
+
+	/** 그 손패를 이 화면에서 조종하는지. (네트워크 대전의 오른쪽은 비추기만 한다) */
+	private boolean ours(int player) {
+		return player == 0 || local;
 	}
 
 	// 진행
+
+	/**
+	 * [피버] 테트리스(4줄)나 콤보로 터진다. 판을 멈추고 터뜨린 쪽이 블록을 고르면,
+	 * 그 블록을 다음 블록으로 넣고 잠깐 점수가 두 배가 된다.
+	 *
+	 * 네트워크 대전에서는 상대 판을 멈출 수 없으므로 내 판만 멈춘다. (pauseBoards 와 같다)
+	 */
+	private void fever(int player) {
+		if (finished)
+			return;
+		pauseBoards();
+		frame.showPick((player + 1) + "P FEVER!  원하는 블록을 고르세요", shape -> {
+			board(player).startFever(shape);
+			resume();
+		});
+	}
 
 	/** 톱니(또는 Esc)를 누르면 두 판을 멈추고 Figma "리플레이 화면" 을 덮는다. */
 	private void pause() {
 		if (!playerBoard.isRunning())
 			return;
+		pauseBoards();
+		frame.showPause(kind, this::resume);
+	}
+
+	/** 두 판과 시계를 멈춘다. 덮개를 띄우기 전에 부른다. */
+	private void pauseBoards() {
 		clock.stop();
 		playerBoard.setPaused(true);
 		if (connection == null)
 			rivalBoard.setPaused(true);
-		frame.showPause(kind, this::resume);
 	}
 
 	private void resume() {
 		GameKeys.bind(this, 0, playerBoard);   // 일시정지 중에 설정을 바꿨을 수 있다
+		if (local)
+			GameKeys.bind(this, 1, rivalBoard);
 		playerBoard.setPaused(false);
 		if (connection == null)
 			rivalBoard.setPaused(false);
@@ -279,14 +473,23 @@ class VersusPanel extends DesignPanel {
 		remain--;
 		timeText = mmss(remain);
 
-		if (connection != null && playerBoard.score() >= nextItemScore) {
-			nextItemScore += ITEM_SCORE;
-			addItem();
+		if (useItems) {
+			award(0);
+			if (local)
+				award(1);
 		}
 		repaint();
 
 		if (remain <= 0 || playerBoard.getGame().isGameOver() || rivalLost())
 			finish();
+	}
+
+	/** 점수가 ITEM_SCORE 만큼 오를 때마다 아이템을 하나 준다. */
+	private void award(int player) {
+		if (board(player).score() < nextItemScore[player])
+			return;
+		nextItemScore[player] += ITEM_SCORE;
+		addItem(player);
 	}
 
 	private boolean rivalLost() {
@@ -379,7 +582,7 @@ class VersusPanel extends DesignPanel {
 		sideInfo(g, playerBoard, LEVEL_BOX_1);
 		sideInfo(g, rivalBoard, LEVEL_BOX_2);
 
-		if (connection != null)
+		if (useItems)
 			items(g);
 
 		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
@@ -394,35 +597,100 @@ class VersusPanel extends DesignPanel {
 		gear(g);
 	}
 
-	/** 손에 든 아이템. 빈 자리는 번호만 흐리게 적는다. */
+	/** 플레이어마다 손에 든 아이템. 고른 자리에 흰 테두리를 둘러 준다. */
 	private void items(Graphics2D g) {
-		tab(g, ITEM_TAB, "Item", TAB_SIZE);
-		outline(g, ITEM_BOX);
-
-		for (int i = 0; i < hand.length; i++) {
-			int x = ITEM_BOX.x + ITEM_PAD;
-			int top = ITEM_BOX.y + ITEM_ROW_TOP + i * ITEM_ROW_H;
-			Attack attack = hand[i];
-
-			if (attack != null)
-				drawImage(g, image(attack.icon), new Rectangle(x, top, ITEM_ICON, ITEM_ICON));
-
-			text(g, (i + 1) + "  " + (attack == null ? "-" : attack.label),
-					x + ITEM_ICON + ITEM_TEXT_GAP, top + ITEM_ICON / 4, ITEM_SIZE,
-					attack == null ? DIM_CREAM : Ui.CREAM);
-		}
+		for (int player = 0; player < 2; player++)
+			itemBox(g, player);
 	}
 
-	/** 한쪽 보드의 레벨과, 그 아래에 켜진 기믹 아이콘. */
+	private void itemBox(Graphics2D g, int player) {
+		Rectangle box = ITEM_BOXES[player];
+		tab(g, ITEM_TABS[player], (player + 1) + "P Item", TAB_SIZE);
+		outline(g, box);
+
+		for (int i = 0; i < HAND_SIZE; i++) {
+			Rectangle slot = itemSlot(box, i);
+			Attack attack = hands[player][i];
+
+			outline(g, slot, ours(player) && i == picked[player] ? Color.WHITE : DIM_CREAM,
+					ITEM_SLOT_BORDER);
+			if (attack != null)
+				drawImage(g, image(attack.icon), centered(slot, ITEM_ICON));
+		}
+
+		// 상자 가로 가운데가 디자인 화면 가운데(1000)와 같아서 textCentered 로 맞는다.
+		Attack chosen = hands[player][picked[player]];
+		if (ours(player))
+			textCentered(g, chosen == null ? "-" : chosen.label, box.y + ITEM_LABEL_DROP,
+					ITEM_SIZE, chosen == null ? DIM_CREAM : Ui.CREAM, 0);
+		textCentered(g, ours(player) ? ITEM_HINTS[player] : "상대 가방",
+				box.y + ITEM_HINT_DROP, ITEM_HINT_SIZE, DIM_CREAM, 0);
+	}
+
+	/** 아이템 칸 세 개를 상자 가운데에 한 줄로 늘어놓는다. */
+	private static Rectangle itemSlot(Rectangle box, int index) {
+		int total = HAND_SIZE * ITEM_SLOT + (HAND_SIZE - 1) * ITEM_SLOT_GAP;
+		int x = box.x + (box.width - total) / 2 + index * (ITEM_SLOT + ITEM_SLOT_GAP);
+		return new Rectangle(x, box.y + ITEM_SLOT_TOP, ITEM_SLOT, ITEM_SLOT);
+	}
+
+	private static Rectangle centered(Rectangle slot, int size) {
+		return new Rectangle(slot.x + (slot.width - size) / 2, slot.y + (slot.height - size) / 2,
+				size, size);
+	}
+
+	/** 한쪽 보드의 레벨과, 그 아래에 켜진 기믹 아이콘과 콤보. */
 	private void sideInfo(Graphics2D g, Board board, Rectangle levelBox) {
 		valueRight(g, levelBox, String.valueOf(board.getGame().getLevel()), VALUE_SIZE, VALUE_PAD);
 		gimmickIcons(g, board.getGame().getGimmick(),
 				levelBox.x, levelBox.y + levelBox.height + GIMMICK_DROP, GIMMICK_ICON, GIMMICK_GAP);
+
+		int combo = combo(board);
+		if (combo > 0)                      // 두 번째 연속 삭제부터 보여 준다
+			text(g, combo + " COMBO", levelBox.x, levelBox.y + levelBox.height + COMBO_DROP,
+					COMBO_SIZE, Ui.CREAM);
+	}
+
+	/** 상대 보드는 비추기만 하므로 콤보도 받아 온 값을 쓴다. */
+	private int combo(Board board) {
+		if (board == rivalBoard && connection != null)
+			return rivalCombo;
+		return board.getGame().getCombo();
 	}
 
 	private void previews(Graphics2D g, Board board, Rectangle nextBox, Rectangle holdBox) {
 		GameBoard game = board.getGame();
 		preview(g, nextBox, game.nextType(), game.getNextColor());
 		preview(g, holdBox, game.holdType(), game.getHoldColor());
+	}
+
+	/**
+	 * 자가 점검. java -ea 로 실행한다.
+	 *
+	 * 가방의 한 개가 두 사람에게 가지 않는지 본다. (1P 가 쓴다고 2P 손패가 비면 안 된다)
+	 */
+	public static void main(String[] args) {
+		List<Attack> stock = new ArrayList<>();
+		stock.add(Attack.BOMB);
+		stock.add(Attack.BOMB);
+		stock.add(Attack.TINY);
+		stock.add(Attack.SPEED);
+
+		Attack[][] hands = new Attack[2][HAND_SIZE];
+		hands[0][0] = stock.remove(stock.indexOf(Attack.BOMB));   // 1P 가 시작 아이템으로 고른 것
+		deal(hands, stock, 2);
+
+		int[] dealt = new int[Attack.values().length];
+		for (Attack[] hand : hands)
+			for (Attack item : hand)
+				if (item != null)
+					dealt[item.ordinal()]++;
+
+		assert dealt[Attack.BOMB.ordinal()] == 2 : "폭탄 2개를 가졌는데 나눠 준 수가 다르다";
+		assert dealt[Attack.TINY.ordinal()] == 1 && dealt[Attack.SPEED.ordinal()] == 1
+				: "한 개짜리가 두 번 올라가거나 빠졌다";
+		assert stock.isEmpty() : "자리가 남는데 안 나눠 준 것이 있다";
+
+		System.out.println("ok");
 	}
 }
