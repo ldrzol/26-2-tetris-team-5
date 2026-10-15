@@ -50,6 +50,7 @@ public class Board extends JPanel implements ActionListener {
 
 	/** 레벨이 올랐을 때 알릴 곳. (화면이 '레벨 클리어' 덮개를 띄운다) */
 	private java.util.function.IntConsumer onLevelUp = null;
+	private Runnable onFever = null;
 
 	// [소리] 직전 상태와 비교해서 줄 삭제 / 레벨업 / 게임 오버에 효과음을 낸다
 	private int lastLines = 0, lastLevel = 1;
@@ -229,6 +230,9 @@ public class Board extends JPanel implements ActionListener {
 			if (onLevelUp != null)
 				onLevelUp.accept(cleared);
 		}
+		boolean fever = game.takeFever();   // [피버] 등록한 화면이 없으면 그냥 흘려보낸다
+		if (fever && onFever != null)
+			onFever.run();
 		if (game.isGameOver() && !lastOver) {
 			lastOver = true;
 			Sfx.play(Sfx.Sound.GAME_OVER);
@@ -238,6 +242,22 @@ public class Board extends JPanel implements ActionListener {
 	/** 레벨이 올랐을 때 할 일을 등록한다. (끝낸 레벨 번호를 넘긴다) */
 	public void onLevelUp(java.util.function.IntConsumer action) {
 		this.onLevelUp = action;
+	}
+
+	/** [피버] 피버가 터졌을 때 할 일을 등록한다. 등록하지 않으면 피버가 없는 판이다. */
+	public void onFever(Runnable action) {
+		this.onFever = action;
+	}
+
+	/**
+	 * [피버] 고른 블록을 다음 블록으로 넣고 점수 배수를 건다.
+	 *
+	 * 가방을 쓰는 useItem 과 달리 아이템을 소모하지 않는다.
+	 */
+	public void startFever(Tetrominoes shape) {
+		game.setNext(shape);
+		game.getGimmick().apply(Attack.SCORE_X2);
+		afterAction();
 	}
 
 	/** 레벨 클리어 뒤 이어서 하기. 쌓인 블록만 비우고 점수·레벨은 유지한다. */

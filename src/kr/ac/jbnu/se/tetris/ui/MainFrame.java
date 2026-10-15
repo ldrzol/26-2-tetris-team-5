@@ -117,6 +117,23 @@ public class MainFrame extends JFrame {
 		}));
 	}
 
+	/** 둘 중 하나를 고르는 덮개. 고른 글자가 그대로 간다. Esc 로 닫으면 null 이 간다. */
+	void showChoice(String title, String first, String second,
+			java.util.function.Consumer<String> onDone) {
+		showOverlay(new InputOverlay(title, new String[] { first, second }, value -> {
+			clearOverlay();
+			onDone.accept(value);
+		}));
+	}
+
+	/** [피버] 블록 7종 중 하나를 고르는 덮개. 반드시 하나를 고른다. */
+	void showPick(String title, java.util.function.Consumer<kr.ac.jbnu.se.tetris.game.Tetrominoes> onPick) {
+		showOverlay(new PickOverlay(title, PickOverlay.pieces(), shape -> {
+			clearOverlay();
+			onPick.accept(shape);
+		}));
+	}
+
 	/** 레벨을 깼을 때 덮는 '레벨 클리어' 화면. '다음 레벨' 을 고르면 onNext 가 돈다. */
 	void showLevelClear(int level, int score, int coins, Runnable onNext) {
 		showOverlay(new LevelClearOverlay(level, score, coins,
@@ -163,9 +180,16 @@ public class MainFrame extends JFrame {
 				() -> showOverlay(new SettingsScreen(() -> showPause(kind, onResume)))));
 	}
 
-	/** 지금 화면 위에 덮개를 올린다. 먼저 올려 둔 덮개는 치운다. */
+	/**
+	 * 지금 화면 위에 덮개를 올린다. 먼저 올려 둔 덮개는 치운다.
+	 *
+	 * 뒤 화면의 단축키는 창 전체에 걸려 있어서(WHEN_IN_FOCUSED_WINDOW) 덮개가 떠 있어도
+	 * 같이 반응한다. 덮개의 Enter 가 뒤 메뉴의 Enter 와 겹치므로 뒤 화면을 꺼 둔다.
+	 */
 	private void showOverlay(JPanel panel) {
 		clearOverlay();
+		if (current != null)
+			current.setEnabled(false);
 		overlay = panel;
 		overlay.setBounds(0, 0, getContentPane().getWidth(), getContentPane().getHeight());
 		getLayeredPane().add(overlay, JLayeredPane.PALETTE_LAYER);
@@ -174,6 +198,8 @@ public class MainFrame extends JFrame {
 	}
 
 	private void clearOverlay() {
+		if (current != null)
+			current.setEnabled(true);
 		if (overlay != null) {
 			getLayeredPane().remove(overlay);
 			getLayeredPane().repaint();
