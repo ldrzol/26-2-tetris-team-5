@@ -1,8 +1,8 @@
 package kr.ac.jbnu.se.tetris.ai;
 
-import kr.ac.jbnu.se.tetris.GameBoard;
-import kr.ac.jbnu.se.tetris.Shape;
-import kr.ac.jbnu.se.tetris.Tetrominoes;
+import kr.ac.jbnu.se.tetris.game.GameBoard;
+import kr.ac.jbnu.se.tetris.game.Shape;
+import kr.ac.jbnu.se.tetris.game.Tetrominoes;
 
 public class TetrisAI {
     public Move findBestMove(GameBoard board, Shape piece) {
@@ -49,7 +49,7 @@ public class TetrisAI {
         return findBestMove(board, piece);
     }
     private boolean canPlace(GameBoard board, Shape shape, int curX, int curY) {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < shape.size(); i++) {
             int x = curX + shape.x(i);
             int y = curY - shape.y(i);
             if (x < 0 || x >=GameBoard.WIDTH || y < 0 || y >= GameBoard.HEIGHT) {
@@ -82,7 +82,7 @@ public class TetrisAI {
             }
         }
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < shape.size(); i++) {
             int x = curX + shape.x(i);
             int y = landingY - shape.y(i);
             copy[y * width + x] = shape.getShape();

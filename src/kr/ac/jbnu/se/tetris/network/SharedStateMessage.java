@@ -1,10 +1,10 @@
 package kr.ac.jbnu.se.tetris.network;
 
-import java.io.Serializable;
+import kr.ac.jbnu.se.tetris.game.Tetrominoes;
+import kr.ac.jbnu.se.tetris.shared.SharedGame;
+import kr.ac.jbnu.se.tetris.shared.SharedState;
 
-import kr.ac.jbnu.se.tetris.SharedGame;
-import kr.ac.jbnu.se.tetris.SharedState;
-import kr.ac.jbnu.se.tetris.Tetrominoes;
+import java.io.Serializable;
 
 public class SharedStateMessage implements Serializable, SharedState {
     private static final long serialVersionUID = 1L;
