@@ -27,7 +27,6 @@ public class Gimmick {
             new InvisiblePiece(),
             new FlipBoard(),
             new PlusLine(),
-            new CoverScreen(),
             new RandomKeys(),
             new SpinBlock(),
             new EraseDot(),
@@ -137,13 +136,6 @@ public class Gimmick {
         return false;
     }
 
-    /** 화면을 덮는 비율(0~1). 켜진 기믹 중 가장 큰 값. */
-    public double coverRatio() {
-        double r = 0;
-        for (GimmickEffect e : active) r = Math.max(r, e.coverRatio());
-        return r;
-    }
-
     public double speedFactor() {
         double f = 1.0;
         for (GimmickEffect e : active) f *= e.speedFactor();
@@ -190,7 +182,6 @@ public class Gimmick {
         switch (attack) {
             case BOMB:        return randomBomb();
             case TINY:        return new EraseDot();
-            case INK:         return new CoverScreen();
             case SPEED:       return new SpeedUp();
             case REVERSE:     return new ReverseKeys();
             case LOCK:        return new NoSpawn();
@@ -295,7 +286,6 @@ interface GimmickEffect {
     default double scoreFactor() { return 1.0; }
 
     /** 화면 위를 덮는 비율(0~1). 0이면 안 덮는다. */
-    default double coverRatio() { return 0; }
 }
 
 /**
@@ -462,17 +452,6 @@ class PlusLine implements GimmickEffect {
         }
         game.liftPieceIfBlocked();   // 올라온 줄과 떨어지는 블록이 겹치면 블록을 위로 올린다
     }
-}
-
-/** 보드 아래쪽 절반을 5초 중 3초 동안 가린다. */
-class CoverScreen implements GimmickEffect {
-    private int sec = 0;
-
-    @Override public String name() { return "COVER"; }
-    @Override public String icon() { return "images/items/atk_ink.png"; }
-    @Override public void onActivate(GameBoard game) { sec = 0; }
-    @Override public void onSecond(GameBoard game) { sec++; }
-    @Override public double coverRatio() { return (sec % 5) < 3 ? 0.5 : 0; }
 }
 
 /** [아이템] 잠시 새 블록이 나오지 않는다. 상대를 묶어 두는 자물쇠. */
