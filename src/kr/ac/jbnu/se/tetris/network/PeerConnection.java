@@ -38,11 +38,6 @@ public class PeerConnection {
 		return connection;
 	}
 
-	/** NetworkListener 로 직접 연결을 만드는 쪽(GameClient/GameServer)용. 수신은 startListening() 으로 따로 시작한다. */
-	public PeerConnection(Socket socket, NetworkListener listener) throws IOException {
-		this(socket, (Consumer<Object>) listener::onMessageReceived);
-	}
-
 	private PeerConnection(Socket socket, Consumer<Object> listener) throws IOException {
 		this.socket = socket;
 		this.listener = listener;
