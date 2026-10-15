@@ -1,7 +1,5 @@
 # src
 
-Java 패키지 경로 때문에 `kr/ac/jbnu/se/tetris` 까지 내려가야 코드가 나온다.
-
 ```
 src/kr/ac/jbnu/se/tetris/
 ├─ game/      게임 규칙 (GameBoard), 화면에 그리는 판 (Board), 기믹, 효과음
