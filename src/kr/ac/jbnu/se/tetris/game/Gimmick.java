@@ -351,11 +351,16 @@ class FadeBlocks implements GimmickEffect {
     }
 }
 
-/** 회전을 막는다. */
+/** 블록 3개마다 1개는 회전할 수 없다. (3번째, 6번째, 9번째 블록...) */
 class NoRotate implements GimmickEffect {
+    private static final int EVERY = 3;   // 몇 개마다 하나씩 회전을 막을지
+    private int spawned = 0;              // 이 효과가 켜진 뒤 나온 블록 수
+
     @Override public String name() { return "NO ROTATE"; }
     @Override public String icon() { return "images/items/gim_norotate.png"; }
-    @Override public boolean blocksRotation() { return true; }
+    @Override public void onActivate(GameBoard game) { spawned = 0; }
+    @Override public void onSpawn(GameBoard game) { spawned++; }
+    @Override public boolean blocksRotation() { return spawned > 0 && spawned % EVERY == 0; }
 }
 
 /** 좌↔우, 반시계↔시계 회전 입력을 서로 바꾼다. */
@@ -420,13 +425,19 @@ class SpinBlock implements GimmickEffect {
     @Override public void onSecond(GameBoard game) { game.forceRotate(); }
 }
 
-/** 떨어지는 블록과 고스트를 숨긴다. 단, 블록이 나온 첫 1초 동안은 보인다. */
+/** 떨어지는 블록과 고스트를 3초 보였다가 2초 숨기기를 되풀이한다. */
 class InvisiblePiece implements GimmickEffect {
-    private static final long VISIBLE_MS = 1000;
+    private static final int VISIBLE_SEC = 3;   // 보이는 시간
+    private static final int HIDDEN_SEC = 2;    // 숨는 시간
+    private int sec = 0;
 
     @Override public String name() { return "INVISIBLE"; }
     @Override public String icon() { return "images/items/gim_invisible.png"; }
-    @Override public boolean hidesPiece(GameBoard game) { return game.msSinceSpawn() >= VISIBLE_MS; }
+    @Override public void onActivate(GameBoard game) { sec = 0; }
+    @Override public void onSecond(GameBoard game) { sec++; }
+    @Override public boolean hidesPiece(GameBoard game) {
+        return sec % (VISIBLE_SEC + HIDDEN_SEC) >= VISIBLE_SEC;
+    }
 }
 
 /** 판을 180도 돌리고, 화면과 맞도록 좌↔우 입력을 뒤집는다. (회전 방향은 180도 돌려도 같아서 그대로) */
