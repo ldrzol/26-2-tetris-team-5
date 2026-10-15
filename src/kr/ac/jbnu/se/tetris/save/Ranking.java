@@ -14,6 +14,7 @@ import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Arrays;
 
 /**
  * 1인 모드 랭킹. 사용자 폴더의 작은 텍스트 파일에 줄 단위로 적어 둔다.
@@ -123,7 +124,7 @@ public final class Ranking {
 		LocalDateTime end = now.toLocalDate()
 				.with(TemporalAdjusters.next(DayOfWeek.MONDAY)).atStartOfDay();
 		Duration left = Duration.between(now, end);
-		return "주간 랭킹 마감까지 " + left.toDays() + "일 " + left.toHoursPart() + "시간";
+		return "주간 랭킹 마감까지 " + left.toDays() + "일 " + left.toHours() + "시간";
 	}
 
 	/** 점수 내림차순. 같은 점수면 먼저 기록한 쪽이 위다 (sort 가 안정 정렬이다). */
@@ -199,7 +200,7 @@ public final class Ranking {
 				: "다음 주 월요일이 같은 주로 묶였다";
 
 		Files.deleteIfExists(tmp);
-		Files.write(tmp, List.of("이번주," + 500 + "," + LocalDate.now(),
+		Files.write(tmp, Arrays.asList("이번주," + 500 + "," + LocalDate.now(),
 				"지난주,900," + LocalDate.now().minusWeeks(1)), StandardCharsets.UTF_8);
 		List<Entry> week = inWeek(thisWeek());
 		assert week.size() == 1 && week.get(0).name.equals("이번주")
