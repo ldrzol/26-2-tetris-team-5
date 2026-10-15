@@ -43,7 +43,8 @@ public class Board extends JPanel implements ActionListener {
 
 	// [기믹] INVISIBLE 이 첫 1초 뒤 정확히 사라지도록 짧은 간격으로 다시 그린다
 	private final Timer visibilityTimer = new Timer(100, e -> {
-		if (isStarted && !isPaused) repaint();
+		// 기믹이 켜져 있을 때만 다시 그린다. 평소에는 불필요한 전체 다시 그리기가 깜빡임을 만든다.
+		if (isStarted && !isPaused && !game.getGimmick().activeIcons().isEmpty()) repaint();
 	});
 
 	private final LineClearEffect flash;             // [flash] 줄 삭제 깜빡임 효과
@@ -301,19 +302,29 @@ public class Board extends JPanel implements ActionListener {
 		}
 	}
 
-	private void drawGrid(Graphics g, int boardTop) {
-		int w = GameBoard.WIDTH * squareWidth();
-		int h = GameBoard.VISIBLE_HEIGHT * squareHeight();
+	// 그리드는 칸 크기가 바뀔 때만 한 번 그려 두고, 매 프레임에는 그림 한 장만 찍는다.
+	private BufferedImage gridCache;
+	private int gridCacheW = -1, gridCacheH = -1;
 
-		g.setColor(new Color(0xF1, 0xE7, 0xD3, 40));   // 어두운 판 위에 보이도록 연한 크림색
-		for (int j = 0; j <= GameBoard.WIDTH; j++) {
-			int x = j * squareWidth();
-			g.drawLine(x, boardTop, x, boardTop + h);
+	private void drawGrid(Graphics g, int boardTop) {
+		int sw = squareWidth(), sh = squareHeight();
+		int w = GameBoard.WIDTH * sw;
+		int h = GameBoard.VISIBLE_HEIGHT * sh;
+		if (w <= 0 || h <= 0) return;
+
+		if (gridCache == null || gridCacheW != w || gridCacheH != h) {
+			gridCache = new BufferedImage(w + 1, h + 1, BufferedImage.TYPE_INT_ARGB);
+			Graphics2D gc = gridCache.createGraphics();
+			gc.setColor(new Color(0xF1, 0xE7, 0xD3, 40));   // 어두운 판 위에 보이도록 연한 크림색
+			for (int j = 0; j <= GameBoard.WIDTH; j++)
+				gc.drawLine(j * sw, 0, j * sw, h);
+			for (int i = 0; i <= GameBoard.VISIBLE_HEIGHT; i++)
+				gc.drawLine(0, i * sh, w, i * sh);
+			gc.dispose();
+			gridCacheW = w;
+			gridCacheH = h;
 		}
-		for (int i = 0; i <= GameBoard.VISIBLE_HEIGHT; i++) {
-			int y = boardTop + i * squareHeight();
-			g.drawLine(0, y, w, y);
-		}
+		g.drawImage(gridCache, 0, boardTop, null);
 	}
 
 	/**
@@ -349,14 +360,16 @@ public class Board extends JPanel implements ActionListener {
 
 		// 판을 패널 한가운데에 놓는다. [다방향] 이면 거기서 90도씩 돌린다
 		Graphics2D g = (Graphics2D) g0.create();
-		g.translate(getWidth() / 2.0, getHeight() / 2.0);
-		g.rotate(Math.PI / 2 * turns);
-		g.translate(-boardW / 2.0, -boardH / 2.0);
+		// 이동량을 정수로 맞춘다. 소수 좌표가 끼면 선이 반 픽셀씩 흔들려 번쩍거린다.
+		g.translate(getWidth() / 2, getHeight() / 2);
+		if (turns != 0)
+			g.rotate(Math.PI / 2 * turns);
+		g.translate(-(boardW / 2), -(boardH / 2));
 		int boardTop = 0;
 
 		// [기믹] FLIP: 판 영역의 중심을 기준으로 180도 돌려서 그린다
 		if (game.getGimmick().flipsBoard())
-			g.rotate(Math.PI, boardW / 2.0, boardH / 2.0);
+			g.rotate(Math.PI, boardW / 2.0, boardH / 2.0);   // 이때만 회전 변환을 쓴다
 
 		if (Settings.grid)                 // [설정] 그리드 표시
 			drawGrid(g, boardTop);
