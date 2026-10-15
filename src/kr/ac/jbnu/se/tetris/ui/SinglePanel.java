@@ -59,6 +59,10 @@ class SinglePanel extends DesignPanel {
 	private static final int GIMMICK_X = 311, GIMMICK_TOP = 779;
 	private static final int GIMMICK_ICON = 84, GIMMICK_GAP = 14;
 
+	/** 콤보 표시 자리. 기믹 아이콘 줄 아래, 보드 왼쪽. */
+	private static final int COMBO_X = 311, COMBO_TOP = 900;
+	private static final float COMBO_SIZE = 56f;
+
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 
 	/**
@@ -95,6 +99,7 @@ class SinglePanel extends DesignPanel {
 		onGear(this::pause);
 
 		board.onLevelUp(this::levelClear);
+		board.onFever(this::fever);
 
 		board.start();
 		clock.start();
@@ -114,6 +119,20 @@ class SinglePanel extends DesignPanel {
 			}
 			board.clearStack();
 			notice = "LEVEL " + (level + 1) + " 시작!";
+			resume();
+		});
+	}
+
+	/**
+	 * [피버] 테트리스(4줄)나 콤보로 터진다. 판을 멈추고 원하는 블록을 고르게 한 뒤,
+	 * 그 블록을 다음 블록으로 넣고 잠깐 점수가 두 배가 된다.
+	 */
+	private void fever() {
+		clock.stop();
+		board.setPaused(true);
+		frame.showPick("FEVER!  원하는 블록을 고르세요", shape -> {
+			board.startFever(shape);
+			say("FEVER! 잠시 점수 2배");
 			resume();
 		});
 	}
@@ -204,6 +223,8 @@ class SinglePanel extends DesignPanel {
 		valueRight(g, TIME_BOX, timeText, VALUE_SIZE, VALUE_PAD);
 		valueRight(g, LEVEL_BOX, String.valueOf(game.getLevel()), VALUE_SIZE, VALUE_PAD);
 		gimmickIcons(g, game.getGimmick(), GIMMICK_X, GIMMICK_TOP, GIMMICK_ICON, GIMMICK_GAP);
+		if (game.getCombo() > 0)                                   // 두 번째 연속 삭제부터 보여 준다
+			text(g, game.getCombo() + " COMBO", COMBO_X, COMBO_TOP, COMBO_SIZE, Ui.CREAM);
 
 		items(g);
 		textCentered(g, notice, NOTICE_TOP, NOTICE_SIZE, Ui.CREAM, 0);

@@ -26,6 +26,8 @@ public class GameBoardSelfCheck {
 		forceRotateIgnoresNoRotate();
 		blockedSpawnEndsGame();
 		bombErasesRandomShape();
+		comboCountsStraightClears();
+		feverFiresOnceAndBoostsScore();
 		System.out.println("GameBoardSelfCheck: 통과");
 	}
 
@@ -255,6 +257,56 @@ public class GameBoardSelfCheck {
 			out[i * 2 + 1] = g.pieceY(i);
 		}
 		return out;
+	}
+
+	/** 연속으로 줄을 지우면 콤보가 1씩 쌓이고, 못 지우면 끊긴다. */
+	static void comboCountsStraightClears() {
+		GameBoard g = new GameBoard();
+		g.spawn();
+		for (int i = 0; i < 3; i++) {
+			fillBottomRow(g);
+			g.hardDrop();           // 꽉 찬 줄을 찾아 깜빡임만 걸어 둔다
+			g.finishClear();
+			check(g.getCombo() == i, (i + 1) + "번째 연속 삭제인데 콤보가 " + g.getCombo());
+			g.spawn();
+		}
+		g.hardDrop();               // 줄을 못 지운 채 놓으면 콤보가 끊긴다
+		check(g.getCombo() < 0, "줄을 못 지웠는데 콤보가 남음: " + g.getCombo());
+	}
+
+	/**
+	 * [피버] 콤보가 기준에 닿으면 한 번만 터지고, 터진 뒤에는 점수가 두 배가 된다.
+	 * 콤보가 더 이어져도 다시 터지지 않아야 한다. (점수 배수가 겹치면 4배가 된다)
+	 */
+	static void feverFiresOnceAndBoostsScore() {
+		GameBoard g = new GameBoard();
+		g.spawn();
+
+		int fired = 0;
+		for (int i = 0; i < GameBoard.FEVER_COMBO + 3; i++) {
+			fillBottomRow(g);
+			g.hardDrop();
+			g.finishClear();
+			if (g.takeFever()) {
+				fired++;
+				g.setNext(Tetrominoes.LineShape);
+				g.getGimmick().apply(Attack.SCORE_X2);   // 화면이 하는 일을 대신 한다
+				check(g.nextType() == Tetrominoes.LineShape,
+						"고른 블록이 다음 블록으로 안 들어감: " + g.nextType());
+			}
+			g.spawn();
+		}
+		check(fired == 1, "피버가 " + fired + "번 터짐 (한 번이어야 함)");
+
+		int before = g.getScore();
+		g.addScore(100);
+		check(g.getScore() - before == 200, "피버 중인데 점수가 두 배가 아님: " + (g.getScore() - before));
+	}
+
+	/** 맨 아랫줄을 꽉 채운다. 다음 블록을 놓으면 그 줄이 지워진다. */
+	static void fillBottomRow(GameBoard g) {
+		for (int x = 0; x < GameBoard.WIDTH; x++)
+			g.cells[GameBoard.HEIGHT - 1][x] = Tetrominoes.SquareShape;
 	}
 
 	static void check(boolean ok, String message) {
