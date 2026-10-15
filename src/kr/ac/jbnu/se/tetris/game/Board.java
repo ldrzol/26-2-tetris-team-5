@@ -389,13 +389,6 @@ public class Board extends JPanel implements ActionListener {
 			}
 		}
 
-		// [기믹] COVER: 보드 아래쪽을 어두운 막으로 가린다
-		double cover = game.getGimmick().coverRatio();
-		if (cover > 0) {
-			int h = (int) (boardH * cover);
-			g.setColor(new Color(15, 15, 25));
-			g.fillRect(0, boardTop + boardH - h, boardW, h);
-		}
 		flash.draw(g, boardTop, squareWidth(), squareHeight());   // [flash]
 		g.dispose();
 	}

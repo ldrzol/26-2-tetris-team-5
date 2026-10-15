@@ -2,7 +2,6 @@ package kr.ac.jbnu.se.tetris.ui;
 
 import kr.ac.jbnu.se.tetris.game.Board;
 import kr.ac.jbnu.se.tetris.game.GameBoard;
-import kr.ac.jbnu.se.tetris.item.Attack;
 import kr.ac.jbnu.se.tetris.save.Ranking;
 import kr.ac.jbnu.se.tetris.save.Settings;
 import kr.ac.jbnu.se.tetris.save.Wallet;
@@ -10,8 +9,6 @@ import kr.ac.jbnu.se.tetris.save.Wallet;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.swing.JLabel;
 import javax.swing.Timer;
@@ -35,18 +32,6 @@ class SinglePanel extends DesignPanel {
 	private static final Rectangle SCORE_BOX = new Rectangle(1367, 653, 322, 100);
 	private static final Rectangle TIME_TAB = new Rectangle(1367, 808, 190, 62);
 	private static final Rectangle TIME_BOX = new Rectangle(1367, 870, 322, 100);
-	// Level/Gimmick 이 왼쪽을 쓰므로 아이템 칸은 Time 아래(오른쪽)에 둔다
-	private static final Rectangle ITEM_TAB = new Rectangle(1367, 1040, 190, 62);
-	private static final Rectangle ITEM_BOX = new Rectangle(1367, 1102, 322, 200);
-
-	/** 아이템 줄 (상자 안쪽 기준 오프셋) */
-	private static final int ITEM_X = 24, ITEM_TOP = 30, ITEM_GAP = 86;
-	private static final int ITEM_SLOTS = 2;   // Item 상자에 들어가는 줄 수. 그만큼만 키로 쓴다
-	private static final float ITEM_SIZE = 36f;
-
-	/** 아이템 줄 왼쪽의 그림. 그림이 없는 아이템도 글자 자리는 같아야 해서 칸을 늘 비워 둔다. */
-	private static final int ITEM_ICON = 48, ITEM_ICON_DROP = -8, ITEM_TEXT_GAP = 12;
-
 	/** 아이템 안내문 자리 */
 	private static final int NOTICE_TOP = 1360;
 	private static final float NOTICE_SIZE = 36f;
@@ -91,11 +76,6 @@ class SinglePanel extends DesignPanel {
 		GameKeys.bind(this, 0, board);     // 설정한 조작키 (+ X, Shift 보조 키)
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
 		Ui.bind(this, KeyEvent.VK_P, "pause2", this::pause);
-		// 1 / 2 키로 가방에 있는 아이템을 쓴다 (가진 것만 위에서부터 들어온다)
-		for (int i = 0; i < ITEM_SLOTS; i++) {
-			final int slot = i;
-			Ui.bind(this, KeyEvent.VK_1 + i, "item" + i, () -> use(slot));
-		}
 		onGear(this::pause);
 
 		board.onLevelUp(this::levelClear);
@@ -135,26 +115,6 @@ class SinglePanel extends DesignPanel {
 			say("FEVER! 잠시 점수 2배");
 			resume();
 		});
-	}
-
-	/** 가진 아이템 중 slot 번째를 쓰고 결과를 안내문에 적는다. */
-	private void use(int slot) {
-		List<Attack> owned = owned();
-		if (slot >= owned.size()) {
-			say("쓸 아이템이 없습니다");
-			return;
-		}
-		Attack item = owned.get(slot);
-		say(board.useItem(item) ? item.label + " 사용!" : item.label + " 이(가) 없습니다");
-	}
-
-	/** 가방에 하나라도 있는 아이템. Attack 순서를 그대로 쓴다. */
-	private List<Attack> owned() {
-		List<Attack> list = new ArrayList<>();
-		for (Attack a : Attack.values())
-			if (Wallet.count(a) > 0)
-				list.add(a);
-		return list;
 	}
 
 	private void say(String message) {
@@ -201,14 +161,12 @@ class SinglePanel extends DesignPanel {
 		boardFrame(g, boardBounds(BOARD, CELL));
 
 		outline(g, HOLD_BOX);
-		outline(g, ITEM_BOX);
 		outline(g, NEXT_BOX);
 		outline(g, SCORE_BOX);
 		outline(g, TIME_BOX);
 		outline(g, LEVEL_BOX);
 
 		tab(g, HOLD_TAB, "Hold", TAB_SIZE);
-		tab(g, ITEM_TAB, "Item", TAB_SIZE);
 		tab(g, NEXT_TAB, "Next", TAB_SIZE);
 		tab(g, SCORE_TAB, "Score", TAB_SIZE);
 		tab(g, TIME_TAB, "Time", TAB_SIZE);
@@ -226,33 +184,11 @@ class SinglePanel extends DesignPanel {
 		if (game.getCombo() > 0)                                   // 두 번째 연속 삭제부터 보여 준다
 			text(g, game.getCombo() + " COMBO", COMBO_X, COMBO_TOP, COMBO_SIZE, Ui.CREAM);
 
-		items(g);
 		textCentered(g, notice, NOTICE_TOP, NOTICE_SIZE, Ui.CREAM, 0);
 
 		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
 
 		gear(g);
-	}
-
-	/** 가진 아이템과 누르는 키를 적는다. 상자에 들어가는 만큼만 보여 주고 나머지는 수만 적는다. */
-	private void items(Graphics2D g) {
-		List<Attack> owned = owned();
-		for (int i = 0; i < ITEM_SLOTS; i++) {
-			int x = ITEM_BOX.x + ITEM_X;
-			int top = ITEM_BOX.y + ITEM_TOP + i * ITEM_GAP;
-			if (i >= owned.size()) {
-				text(g, (i + 1) + "  -", x, top, ITEM_SIZE, DIM_CREAM);
-				continue;
-			}
-			Attack item = owned.get(i);
-			drawImage(g, image(item.icon),
-					new Rectangle(x, top + ITEM_ICON_DROP, ITEM_ICON, ITEM_ICON));
-			text(g, (i + 1) + "  " + item.label + "  x" + Wallet.count(item),
-					x + ITEM_ICON + ITEM_TEXT_GAP, top, ITEM_SIZE, Ui.CREAM);
-		}
-		if (owned.size() > ITEM_SLOTS)
-			text(g, "외 " + (owned.size() - ITEM_SLOTS) + "종", ITEM_BOX.x + ITEM_X,
-					ITEM_BOX.y + ITEM_TOP + ITEM_SLOTS * ITEM_GAP, ITEM_SIZE, DIM_CREAM);
 	}
 
 	private void tick() {
