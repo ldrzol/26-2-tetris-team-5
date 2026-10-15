@@ -48,6 +48,11 @@ public class GameBoard {
     private int score = 0;
     private int combo = -1;                 // 연속으로 줄을 지운 횟수 (-1: 연속 아님)
 
+    // ---- 피버 ----
+    /** 이 콤보부터 피버가 터진다. 한 번에 4줄(테트리스)로도 터진다. */
+    public static final int FEVER_COMBO = 4;
+    private boolean feverPending = false;   // 조건을 채웠고 아직 화면이 가져가지 않은 상태
+
     public GameBoard() {
         reset();
     }
@@ -92,6 +97,7 @@ public class GameBoard {
         }
         flashRows.clear();
         combo = -1;
+        feverPending = false;
         spawnPending = false;
         spawn();
     }
@@ -118,6 +124,7 @@ public class GameBoard {
         gimmick.clear();                        // [기믹]
         score = 0;
         combo = -1;
+        feverPending = false;
         rollNext();
     }
 
@@ -455,6 +462,28 @@ public class GameBoard {
         score += (int) Math.round(points * gimmick.scoreFactor());
     }
 
+    /**
+     * [피버] 피버 조건을 채웠으면 한 번만 true 를 돌려준다. (가져가면 꺼진다)
+     *
+     * 판을 멈추고 블록을 고르게 하는 것은 화면 쪽 일이라 여기서는 신호만 세워 둔다.
+     */
+    public boolean takeFever() {
+        boolean on = feverPending;
+        feverPending = false;
+        return on;
+    }
+
+    /** [피버] 다음에 나올 블록을 지정한다. 색은 늘 하던 대로 새로 뽑는다. */
+    public void setNext(Tetrominoes shape) {
+        nextShape = shape;
+        nextColor = rng.nextInt(COLOR_COUNT);
+    }
+
+    /** 지금 이어지는 콤보. 0 이하면 콤보 표시 안 함. (첫 삭제 0, 두 번째 삭제부터 1) */
+    public int getCombo() {
+        return combo;
+    }
+
     public int getLinesRemoved() {
         return linesRemoved;
     }
@@ -545,6 +574,12 @@ public class GameBoard {
         if (isBoardEmpty())
             gained += PERFECT_POINTS[n] * level;                   // 퍼펙트 클리어
         gain(gained);
+
+        // [피버] 테트리스(4줄)이거나 콤보가 막 기준에 닿았을 때. 콤보가 더 길어져도
+        // 다시 터지지 않게 '넘은' 것이 아니라 '닿은' 순간만 본다. 점수 배수가 이미
+        // 걸려 있으면(피버 중이거나 점수 2배 아이템을 썼으면) 겹치지 않게 건너뛴다.
+        if ((n == 4 || combo == FEVER_COMBO) && gimmick.scoreFactor() == 1.0)
+            feverPending = true;
     }
 
     private boolean isBoardEmpty() {

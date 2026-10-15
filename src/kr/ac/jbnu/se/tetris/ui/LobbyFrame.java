@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 import javax.swing.JFrame;
-import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
@@ -27,6 +26,9 @@ class LobbyFrame extends MenuScreen {
 
 	/** 참가비 하한. 이보다 적게는 걸 수 없다. */
 	private static final int MIN_FEE = 100;
+
+	/** 방장이 고르는 모드. 두 번째가 땅따먹기다. */
+	private static final String[] MODES = { "클래식", "땅따먹기" };
 
 	// 연결한 뒤 주고받는 신호. 둘 다 같은 문자열을 봐야 한다.
 	private static final String READY = "READY";
@@ -74,10 +76,36 @@ class LobbyFrame extends MenuScreen {
 
 	// 방 열기 / 들어가기
 
+	/** 모드 -> 참가비 -> 방 열기. 덮개는 모달이 아니라서 한 단계씩 이어 간다. */
 	private void createRoom() {
-		if (!askMode() || !askFee())
-			return;
+		frame.showChoice("게임 모드를 고르세요", MODES[0], MODES[1], mode -> {
+			if (mode == null)
+				return;
+			shared = mode.equals(MODES[1]);
+			askFee();
+		});
+	}
 
+	/** 참가비를 묻고, 걸 수 있는 금액이면 방을 연다. */
+	private void askFee() {
+		frame.showInput("참가비 (" + MIN_FEE + " 이상, 내 코인 " + Wallet.coins() + ")", "", input -> {
+			if (input == null)
+				return;
+			try {
+				fee = Integer.parseInt(input.trim());
+			} catch (NumberFormatException e) {
+				fail("참가비는 숫자로 입력하세요");
+				return;
+			}
+			if (fee < MIN_FEE || fee > Wallet.coins()) {
+				fail("참가비는 " + MIN_FEE + " 이상, 내 코인 이하여야 합니다");
+				return;
+			}
+			openRoom();
+		});
+	}
+
+	private void openRoom() {
 		host = true;
 		busy = true;
 		status = waitingMessage();
@@ -93,39 +121,9 @@ class LobbyFrame extends MenuScreen {
 		}).start();
 	}
 
-	/** 모드를 묻는다. 취소하면 false. */
-	private boolean askMode() {
-		String[] options = { "클래식", "땅따먹기" };
-		int choice = JOptionPane.showOptionDialog(this, "게임 모드를 고르세요", "모드 선택",
-				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-		if (choice < 0)
-			return false;
-		shared = choice == 1;
-		return true;
-	}
-
-	/** 참가비를 묻는다. 취소하거나 걸 수 없는 금액이면 false. */
-	private boolean askFee() {
-		String input = JOptionPane.showInputDialog(this,
-				"참가비를 입력하세요 (" + MIN_FEE + " 이상, 내 코인 " + Wallet.coins() + ")",
-				"참가비", JOptionPane.QUESTION_MESSAGE);
-		if (input == null)
-			return false;
-
-		try {
-			fee = Integer.parseInt(input.trim());
-		} catch (NumberFormatException e) {
-			return fail("참가비는 숫자로 입력하세요");
-		}
-		if (fee < MIN_FEE || fee > Wallet.coins())
-			return fail("참가비는 " + MIN_FEE + " 이상, 내 코인 이하여야 합니다");
-		return true;
-	}
-
-	private boolean fail(String message) {
+	private void fail(String message) {
 		status = message;
 		repaint();
-		return false;
 	}
 
 	/** 내 IP 를 알 수 있으면 같이 알려 준다. 못 찾아도 방은 열린다. */
