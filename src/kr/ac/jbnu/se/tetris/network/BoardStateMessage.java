@@ -1,6 +1,7 @@
 package kr.ac.jbnu.se.tetris.network;
 
 import kr.ac.jbnu.se.tetris.game.Tetrominoes;
+import kr.ac.jbnu.se.tetris.item.Attack;
 
 import java.io.Serializable;
 
@@ -11,7 +12,7 @@ import java.io.Serializable;
  * 되므로 블록 좌표를 따로 들고 다닐 필요가 없다.
  */
 public class BoardStateMessage implements Serializable {
-    private static final long serialVersionUID = 2L;
+    private static final long serialVersionUID = 3L;
 
     public final Tetrominoes[] cells;
     public final int[] colors;
@@ -19,12 +20,21 @@ public class BoardStateMessage implements Serializable {
     public final int score;
     public final boolean gameOver;
 
+    /** 보내는 쪽이 손에 든 아이템. 빈 자리는 null. 상대 화면에 그대로 보여 준다. */
+    public final Attack[] hand;
+
+    /** 연속 삭제 횟수. 받는 쪽은 칸만 그리므로 따로 알려 줘야 한다. */
+    public final int combo;
+
     public BoardStateMessage(Tetrominoes[] cells, int[] colors,
-                             int linesRemoved, int score, boolean gameOver) {
+                             int linesRemoved, int score, boolean gameOver, Attack[] hand,
+                             int combo) {
         this.cells = cells;
         this.colors = colors;
         this.linesRemoved = linesRemoved;
         this.score = score;
         this.gameOver = gameOver;
+        this.hand = hand;
+        this.combo = combo;
     }
 }

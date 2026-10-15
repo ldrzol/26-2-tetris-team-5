@@ -27,7 +27,6 @@ public class Gimmick {
             new InvisiblePiece(),
             new FlipBoard(),
             new PlusLine(),
-            new CoverScreen(),
             new RandomKeys(),
             new SpinBlock(),
             new EraseDot(),
@@ -137,13 +136,6 @@ public class Gimmick {
         return false;
     }
 
-    /** 화면을 덮는 비율(0~1). 켜진 기믹 중 가장 큰 값. */
-    public double coverRatio() {
-        double r = 0;
-        for (GimmickEffect e : active) r = Math.max(r, e.coverRatio());
-        return r;
-    }
-
     public double speedFactor() {
         double f = 1.0;
         for (GimmickEffect e : active) f *= e.speedFactor();
@@ -190,7 +182,6 @@ public class Gimmick {
         switch (attack) {
             case BOMB:        return randomBomb();
             case TINY:        return new EraseDot();
-            case INK:         return new CoverScreen();
             case SPEED:       return new SpeedUp();
             case REVERSE:     return new ReverseKeys();
             case LOCK:        return new NoSpawn();
@@ -293,9 +284,6 @@ interface GimmickEffect {
 
     /** 얻는 점수에 곱해진다. */
     default double scoreFactor() { return 1.0; }
-
-    /** 화면 위를 덮는 비율(0~1). 0이면 안 덮는다. */
-    default double coverRatio() { return 0; }
 }
 
 /**
@@ -329,7 +317,7 @@ class SpeedUp implements GimmickEffect {
 /** 쌓인 블록이 놓인 지 FADE_LIFE_SECONDS 초가 지나면 사라진다. (쓰레기 줄은 제외) */
 class FadeBlocks implements GimmickEffect {
 
-    private static final int FADE_LIFE_SECONDS = 15;
+    private static final int FADE_LIFE_SECONDS = 25;
 
     @Override public String name() { return "FADE"; }
     @Override public String icon() { return "images/items/gim_fade.png"; }
@@ -416,13 +404,23 @@ class RandomKeys implements GimmickEffect {
 /**
  * 블록이 저절로 돌아간다. 하드 드롭으로 떨어뜨리면 그 순간의 방향 그대로 굳는다.
  *
- * 기믹용 1초 타이머에 얹어 1초에 한 번 돌린다. 더 빠르게 돌리려면 Board 에 짧은
- * 타이머를 하나 더 두고 forceRotate() 를 부른다.
+ * 기믹용 1초 타이머에 얹어 ROTATE_INTERVAL_SEC 초에 한 번 돌린다. 더 빠르게 돌리려면
+ * Board 에 짧은 타이머를 하나 더 두고 forceRotate() 를 부른다.
  */
 class SpinBlock implements GimmickEffect {
+    private static final int ROTATE_INTERVAL_SEC = 2;   // 기존 1초의 2배
+    private int sec = 0;
+
     @Override public String name() { return "SPIN"; }
     @Override public String icon() { return "images/items/gim_rotfix.png"; }
-    @Override public void onSecond(GameBoard game) { game.forceRotate(); }
+    @Override public void onActivate(GameBoard game) { sec = 0; }
+
+    @Override
+    public void onSecond(GameBoard game) {
+        if (++sec < ROTATE_INTERVAL_SEC) return;
+        sec = 0;
+        game.forceRotate();
+    }
 }
 
 /** 떨어지는 블록과 고스트를 3초 보였다가 2초 숨기기를 되풀이한다. */
@@ -440,14 +438,38 @@ class InvisiblePiece implements GimmickEffect {
     }
 }
 
-/** 판을 180도 돌리고, 화면과 맞도록 좌↔우 입력을 뒤집는다. (회전 방향은 180도 돌려도 같아서 그대로) */
+/**
+ * 판을 180도 돌리고, 화면과 맞도록 좌↔우 입력을 뒤집는다. (회전 방향은 180도 돌려도 같아서 그대로)
+ *
+ * 켜지는 순간 뒤집히고, 그 뒤로 FLIP_INTERVAL_SEC 초마다 뒤집힌 상태와 원래 상태를 번갈아 바뀐다.
+ * 화면과 입력이 항상 같은 상태를 보도록 flipped 하나로 둘 다 정한다.
+ */
 class FlipBoard implements GimmickEffect {
+    private static final int FLIP_INTERVAL_SEC = 90;
+    private boolean flipped = true;
+    private int sec = 0;
+
     @Override public String name() { return "FLIP 180"; }
     @Override public String icon() { return "images/items/gim_gravity.png"; }
-    @Override public boolean flipsBoard() { return true; }
+
+    @Override
+    public void onActivate(GameBoard game) {
+        flipped = true;
+        sec = 0;
+    }
+
+    @Override
+    public void onSecond(GameBoard game) {
+        if (++sec < FLIP_INTERVAL_SEC) return;
+        sec = 0;
+        flipped = !flipped;
+    }
+
+    @Override public boolean flipsBoard() { return flipped; }
 
     @Override
     public Gimmick.Input remap(Gimmick.Input in) {
+        if (!flipped) return in;
         switch (in) {
             case LEFT:  return Gimmick.Input.RIGHT;
             case RIGHT: return Gimmick.Input.LEFT;
@@ -456,16 +478,31 @@ class FlipBoard implements GimmickEffect {
     }
 }
 
-/** 켜지는 순간 맨 아래에 구멍 하나 뚫린 쓰레기 줄을 한 번 끼워 넣는다. */
+/** 켜지는 순간과 그 뒤로 INTERVAL_SEC 초마다, 맨 아래에 구멍 하나 뚫린 쓰레기 줄을 끼워 넣는다. */
 class PlusLine implements GimmickEffect {
 
+    private static final int INTERVAL_SEC = 20;   // 쿨타임
     private final Random rand = new Random();
+    private int sec = 0;
 
     @Override public String name() { return "PLUS LINE"; }
     @Override public String icon() { return "images/items/gim_floor.png"; }
 
     @Override
     public void onActivate(GameBoard game) {
+        sec = 0;
+        addLine(game);
+    }
+
+    @Override
+    public void onSecond(GameBoard game) {
+        if (game.isClearing()) return;   // 줄 삭제 깜빡임 중에는 건드리지 않는다
+        if (++sec < INTERVAL_SEC) return;
+        sec = 0;
+        addLine(game);
+    }
+
+    private void addLine(GameBoard game) {
         int hole = rand.nextInt(GameBoard.WIDTH);
         game.upLine(0);
         for (int i = 0; i < GameBoard.WIDTH; i++) {
@@ -473,17 +510,6 @@ class PlusLine implements GimmickEffect {
         }
         game.liftPieceIfBlocked();   // 올라온 줄과 떨어지는 블록이 겹치면 블록을 위로 올린다
     }
-}
-
-/** 보드 아래쪽 절반을 5초 중 3초 동안 가린다. */
-class CoverScreen implements GimmickEffect {
-    private int sec = 0;
-
-    @Override public String name() { return "COVER"; }
-    @Override public String icon() { return "images/items/atk_ink.png"; }
-    @Override public void onActivate(GameBoard game) { sec = 0; }
-    @Override public void onSecond(GameBoard game) { sec++; }
-    @Override public double coverRatio() { return (sec % 5) < 3 ? 0.5 : 0; }
 }
 
 /** [아이템] 잠시 새 블록이 나오지 않는다. 상대를 묶어 두는 자물쇠. */
@@ -518,7 +544,7 @@ class TwinPieces extends TimedEffect {
 
 /** 일정 시간마다 쌓인 블록 하나를 중심으로 모양대로 지우는 기믹의 공통 부분. */
 abstract class EraseShape implements GimmickEffect {
-    private static final int INTERVAL_SEC = 8;
+    private static final int INTERVAL_SEC = 16;   // 기존 8초의 2배
     private int sec = 0;
 
     /** 중심 기준 상대 좌표(dx, dy) 목록. 지울 때마다 호출된다. */
