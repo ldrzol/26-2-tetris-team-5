@@ -12,6 +12,3 @@ src/kr/ac/jbnu/se/tetris/
 ├─ images/    아이콘과 블록 그림
 └─ font/      픽셀 글꼴
 ```
-
-그림과 글꼴이 `src` 아래에 있으므로 터미널에서 돌릴 때는 클래스패스에 `src` 를 같이 넣는다.
-실행 방법과 조작키는 [루트 README](../README.md) 참고.
