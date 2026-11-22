@@ -7,6 +7,12 @@ public class SharedGame implements SharedState {
     public static final int WIDTH = 14;
     public static final int HEIGHT = 22;
     private static final int[] SPAWN_X = {3, 10};
+    /** 블록 한 개의 칸 수. */
+    public static final int PIECE_CELLS = 4;
+    /** 사람 수 (방장 P1, 상대 P2). */
+    public static final int PLAYER_COUNT = 2;
+    /** getWinner()가 무승부일 때 돌려주는 값. */
+    public static final int DRAW = -1;
 
     private static class Player {
         Shape shape = new Shape();
@@ -103,7 +109,7 @@ public class SharedGame implements SharedState {
         if (players[1].score > players[0].score) {
             return 1;
         }
-        return -1;
+        return DRAW;
     }
 
     private boolean tryMove(int p, Shape newShape, int newX, int newY) {
@@ -118,7 +124,7 @@ public class SharedGame implements SharedState {
     }
 
     private boolean canPlace(Shape shape, int px, int py) {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < PIECE_CELLS; i++) {
             int x = px + shape.x(i);
             int y = py - shape.y(i);
             if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
@@ -146,7 +152,7 @@ public class SharedGame implements SharedState {
 
     private void lockPiece(int p) {
         Player player = players[p];
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < PIECE_CELLS; i++) {
             int x = player.x + player.shape.x(i);
             int y = player.y - player.shape.y(i);
             cells[y * WIDTH + x] = player.shape.getShape();
@@ -164,7 +170,7 @@ public class SharedGame implements SharedState {
         if (player.shape.getShape() == Tetrominoes.NoShape) {
             return false;
         }
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < PIECE_CELLS; i++) {
             int x = player.x + player.shape.x(i);
             int y = player.y - player.shape.y(i);
             if (cells[y * WIDTH + x] != Tetrominoes.NoShape) {

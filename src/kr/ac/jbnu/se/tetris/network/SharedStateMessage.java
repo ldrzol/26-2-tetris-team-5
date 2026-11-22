@@ -25,16 +25,16 @@ public class SharedStateMessage implements Serializable, SharedState {
             }
         }
 
-        types = new Tetrominoes[2];
-        xs = new int[8];
-        ys = new int[8];
-        scores = new int[2];
-        for (int p = 0; p < 2; p++) {
+        types =new Tetrominoes[SharedGame.PLAYER_COUNT];
+        xs =new int[SharedGame.PLAYER_COUNT * SharedGame.PIECE_CELLS];
+        ys = new int[SharedGame.PLAYER_COUNT * SharedGame.PIECE_CELLS];
+        scores = new int[SharedGame.PLAYER_COUNT];
+        for (int p = 0; p < SharedGame.PLAYER_COUNT; p++) {
             types[p] = source.pieceType(p);
             scores[p] = source.getScore(p);
-            for (int i = 0; i < 4; i++) {
-                xs[p * 4 + i] = source.pieceX(p, i);
-                ys[p * 4 + i] = source.pieceY(p, i);
+            for (int i = 0; i < SharedGame.PIECE_CELLS; i++) {
+                xs[p * SharedGame.PIECE_CELLS + i] = source.pieceX(p, i);
+                ys[p * SharedGame.PIECE_CELLS + i] = source.pieceY(p, i);
             }
         }
 
@@ -54,12 +54,12 @@ public class SharedStateMessage implements Serializable, SharedState {
 
     @Override
     public int pieceX(int p, int i) {
-        return xs[p * 4 + i];
+        return xs[p * SharedGame.PIECE_CELLS + i];
     }
 
     @Override
     public int pieceY(int p, int i) {
-        return ys[p * 4 + i];
+        return ys[p * SharedGame.PIECE_CELLS + i];
     }
 
     @Override
