@@ -1,5 +1,6 @@
 package kr.ac.jbnu.se.tetris.shared;
 
+import kr.ac.jbnu.se.tetris.game.Playfield;
 import kr.ac.jbnu.se.tetris.game.Shape;
 import kr.ac.jbnu.se.tetris.game.Tetrominoes;
 
@@ -15,7 +16,7 @@ public class SharedGame implements SharedState {
         int score;
     }
 
-    private final Tetrominoes[] cells = new Tetrominoes[WIDTH * HEIGHT];
+    private final Playfield field = new Playfield(WIDTH, HEIGHT);
     private final Player[] players = {new Player(), new Player()};
     private boolean gameOver = false;
 
@@ -24,9 +25,7 @@ public class SharedGame implements SharedState {
     }
 
     public void reset() {
-        for (int i = 0; i < cells.length; i++) {
-            cells[i] = Tetrominoes.NoShape;
-        }
+        field.clear();
         for (Player player : players) {
             player.score = 0;
         }
@@ -69,7 +68,7 @@ public class SharedGame implements SharedState {
     }
 
     public Tetrominoes shapeAt(int x, int y) {
-        return cells[y * WIDTH + x];
+        return field.shapeAt(x, y);
     }
 
     public Tetrominoes pieceType(int p) {
@@ -124,7 +123,7 @@ public class SharedGame implements SharedState {
             if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
                 return false;
             }
-            if (cells[y * WIDTH + x] != Tetrominoes.NoShape) {
+            if (!field.isEmptyAt(x, y)) {
                 return false;
             }
         }
@@ -149,7 +148,7 @@ public class SharedGame implements SharedState {
         for (int i = 0; i < 4; i++) {
             int x = player.x + player.shape.x(i);
             int y = player.y - player.shape.y(i);
-            cells[y * WIDTH + x] = player.shape.getShape();
+            field.set(x, y, player.shape.getShape(), 0);
         }
         player.score += clearLines();
 
@@ -167,7 +166,7 @@ public class SharedGame implements SharedState {
         for (int i = 0; i < 4; i++) {
             int x = player.x + player.shape.x(i);
             int y = player.y - player.shape.y(i);
-            if (cells[y * WIDTH + x] != Tetrominoes.NoShape) {
+            if (!field.isEmptyAt(x, y)) {
                 return true;
             }
         }
@@ -178,33 +177,13 @@ public class SharedGame implements SharedState {
         int cleared = 0;
         int y = 0;
         while (y < HEIGHT) {
-            if (isRowFull(y)) {
-                removeRow(y);
+            if (field.isRowFull(y)) {
+                field.removeRow(y);
                 cleared++;
             } else {
                 y++;
             }
         }
         return cleared;
-    }
-
-    private boolean isRowFull(int y) {
-        for (int x = 0; x < WIDTH; x++) {
-            if (cells[y * WIDTH + x] == Tetrominoes.NoShape) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void removeRow(int y) {
-        for (int row = y; row < HEIGHT - 1; row++) {
-            for (int x = 0; x < WIDTH; x++) {
-                cells[row * WIDTH + x] = cells[(row + 1) * WIDTH + x];
-            }
-        }
-        for (int x = 0; x < WIDTH; x++) {
-            cells[(HEIGHT - 1) * WIDTH + x] = Tetrominoes.NoShape;
-        }
     }
 }

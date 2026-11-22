@@ -306,7 +306,7 @@ public class GameBoardSelfCheck {
 	/** 맨 아랫줄을 꽉 채운다. 다음 블록을 놓으면 그 줄이 지워진다. */
 	static void fillBottomRow(GameBoard g) {
 		for (int x = 0; x < GameBoard.WIDTH; x++)
-			g.cells[GameBoard.HEIGHT - 1][x] = Tetrominoes.SquareShape;
+			g.field().set(x, GameBoard.HEIGHT - 1, Tetrominoes.SquareShape, 0);
 	}
 
 	static void check(boolean ok, String message) {
