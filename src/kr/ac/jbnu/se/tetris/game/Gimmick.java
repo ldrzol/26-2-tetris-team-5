@@ -284,6 +284,8 @@ interface GimmickEffect {
 
     /** 얻는 점수에 곱해진다. */
     default double scoreFactor() { return 1.0; }
+
+    /** 화면 위를 덮는 비율(0~1). 0이면 안 덮는다. */
 }
 
 /**
@@ -325,30 +327,37 @@ class FadeBlocks implements GimmickEffect {
     @Override
     public void onSecond(GameBoard game) {
         if (game.isClearing()) return;   // 줄 삭제 깜빡임 중에는 건드리지 않는다
-        for (int y = 0; y < GameBoard.HEIGHT; y++) {
-            for (int x = 0; x < GameBoard.WIDTH; x++) {
-                Tetrominoes t = game.cells[y][x];
-                if (t == Tetrominoes.NoShape || t == Tetrominoes.GarbageShape) continue;
-                if (++game.age[y][x] >= FADE_LIFE_SECONDS) {
-                    game.cells[y][x] = Tetrominoes.NoShape;
-                    game.colorIds[y][x] = 0;
-                    game.age[y][x] = 0;
-                }
-            }
-        }
+        game.field().ageAndFade(FADE_LIFE_SECONDS);
     }
 }
 
-/** 블록 3개마다 1개는 회전할 수 없다. (3번째, 6번째, 9번째 블록...) */
+/**
+ * 회전을 막는다. 켜지는 순간부터 ACTIVE_SEC 초 동안 막고, 그다음 REST_SEC 초 동안 풀렸다가
+ * 다시 막는 식으로 계속 번갈아 간다.
+ */
 class NoRotate implements GimmickEffect {
-    private static final int EVERY = 3;   // 몇 개마다 하나씩 회전을 막을지
-    private int spawned = 0;              // 이 효과가 켜진 뒤 나온 블록 수
+    private static final int ACTIVE_SEC = 10;   // 막혀 있는 시간
+    private static final int REST_SEC = 10;     // 풀려 있는 시간
+    private int sec = 0;
+    private boolean blocking = true;
 
     @Override public String name() { return "NO ROTATE"; }
     @Override public String icon() { return "images/items/gim_norotate.png"; }
-    @Override public void onActivate(GameBoard game) { spawned = 0; }
-    @Override public void onSpawn(GameBoard game) { spawned++; }
-    @Override public boolean blocksRotation() { return spawned > 0 && spawned % EVERY == 0; }
+
+    @Override
+    public void onActivate(GameBoard game) {
+        sec = 0;
+        blocking = true;
+    }
+
+    @Override
+    public void onSecond(GameBoard game) {
+        if (++sec < (blocking ? ACTIVE_SEC : REST_SEC)) return;
+        sec = 0;
+        blocking = !blocking;
+    }
+
+    @Override public boolean blocksRotation() { return blocking; }
 }
 
 /** 좌↔우, 반시계↔시계 회전 입력을 서로 바꾼다. */
@@ -423,19 +432,13 @@ class SpinBlock implements GimmickEffect {
     }
 }
 
-/** 떨어지는 블록과 고스트를 3초 보였다가 2초 숨기기를 되풀이한다. */
+/** 떨어지는 블록과 고스트를 숨긴다. 단, 블록이 나온 첫 1초 동안은 보인다. */
 class InvisiblePiece implements GimmickEffect {
-    private static final int VISIBLE_SEC = 3;   // 보이는 시간
-    private static final int HIDDEN_SEC = 2;    // 숨는 시간
-    private int sec = 0;
+    private static final long VISIBLE_MS = 1000;
 
     @Override public String name() { return "INVISIBLE"; }
     @Override public String icon() { return "images/items/gim_invisible.png"; }
-    @Override public void onActivate(GameBoard game) { sec = 0; }
-    @Override public void onSecond(GameBoard game) { sec++; }
-    @Override public boolean hidesPiece(GameBoard game) {
-        return sec % (VISIBLE_SEC + HIDDEN_SEC) >= VISIBLE_SEC;
-    }
+    @Override public boolean hidesPiece(GameBoard game) { return game.msSinceSpawn() >= VISIBLE_MS; }
 }
 
 /**
@@ -504,10 +507,7 @@ class PlusLine implements GimmickEffect {
 
     private void addLine(GameBoard game) {
         int hole = rand.nextInt(GameBoard.WIDTH);
-        game.upLine(0);
-        for (int i = 0; i < GameBoard.WIDTH; i++) {
-            game.cells[0][i] = (i == hole) ? Tetrominoes.NoShape : Tetrominoes.GarbageShape;
-        }
+        game.field().insertGarbageRow(hole);
         game.liftPieceIfBlocked();   // 올라온 줄과 떨어지는 블록이 겹치면 블록을 위로 올린다
     }
 }

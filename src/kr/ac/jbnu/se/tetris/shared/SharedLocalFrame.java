@@ -1,33 +1,20 @@
 package kr.ac.jbnu.se.tetris.shared;
 
-import java.awt.BorderLayout;
-import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 
-import javax.swing.AbstractAction;
-import javax.swing.InputMap;
-import javax.swing.JComponent;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.KeyStroke;
 import javax.swing.Timer;
 
-public class SharedLocalFrame extends JFrame {
+public class SharedLocalFrame extends AbstractSharedFrame {
 
     /** 블록이 한 칸 내려오는 간격. */
     private static final int FALL_MS = 400;
     private final SharedGame game = new SharedGame();
-    private final SharedBoardView view = new SharedBoardView();
-    private final JLabel scoreLabel = new JLabel(" ", JLabel.CENTER);
 
     public SharedLocalFrame() {
-        add(scoreLabel, BorderLayout.NORTH);
-        add(view, BorderLayout.CENTER);
-
+        super("땅따먹기 (한 PC 테스트)");
         setupKeys();
         refresh();
 
-        setTitle("땅따먹기 (한 PC 테스트)");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         pack();
 
@@ -56,15 +43,9 @@ public class SharedLocalFrame extends JFrame {
         bind(KeyEvent.VK_Q, "p2drop", () -> game.hardDrop(1));
     }
 
-    private void bind(int keyCode, String name, Runnable action) {
-        InputMap im = getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
-        im.put(KeyStroke.getKeyStroke(keyCode, 0), name);
-        getRootPane().getActionMap().put(name, new AbstractAction() {
-            public void actionPerformed(ActionEvent e) {
-                action.run();
-                refresh();
-            }
-        });
+    @Override
+    protected void afterKey() {
+        refresh();
     }
 
     public static void main(String[] args) {
