@@ -10,7 +10,7 @@ import kr.ac.jbnu.se.tetris.save.Wallet;
 /**
  * 2인 대전 로비의 연결, 신호 주고받기, 참가비 정산. 화면(LobbyFrame)은 결과만 받아서 보여 준다.
  *
- * 받은 신호는 화면 스레드에서 처리한다. host, shared, fee 를 한 스레드에서만 바꾸기 위해서다.
+ * 받은 신호는 화면 스레드에서 처리한다. host,gameMode, fee 를 한 스레드에서만 바꾸기 위해서다.
  */
 public class LobbyService {
 
@@ -23,7 +23,7 @@ public class LobbyService {
         void onFailed(String text);
 
         /** 둘 다 참가비를 내서 게임을 시작한다. */
-        void onStart(PeerConnection connection, boolean host, boolean shared, int fee);
+        void onStart(PeerConnection connection, boolean host, GameMode gameMode, int fee);
     }
 
     public static final int PORT = 5000;
@@ -43,8 +43,8 @@ public class LobbyService {
     /** 내가 방을 연 쪽인지. 방장만 모드와 참가비를 정한다. */
     private boolean host = false;
 
-    /** 땅따먹기면 true, 클래식 대전이면 false. */
-    private boolean shared = false;
+    /** 고른 모드. */
+    private GameMode gameMode = GameMode.CLASSIC;
 
     private int fee;
 
@@ -68,9 +68,9 @@ public class LobbyService {
 
     // 방 열기 / 들어가기
 
-    public void openRoom(boolean shared, int fee) {
+    public void openRoom(GameMode gameMode, int fee) {
         this.host = true;
-        this.shared = shared;
+        this.gameMode = gameMode;
         this.fee = fee;
 
         new Thread(() -> {
@@ -121,11 +121,11 @@ public class LobbyService {
 
     private void handleAsHost(String text) {
         if (text.equals(READY)) {
-            connection.send(MODE + (shared ? "SHARED" : "CLASSIC") + ":" + fee);
+            connection.send(MODE + gameMode.name() + ":" + fee);
             listener.onStatus("참가비 " + fee + " 코인 - 상대의 확인을 기다리는 중...");
         } else if (text.equals(ACCEPT)) {
             Wallet.addCoins(-fee);
-            listener.onStart(connection, host, shared, fee);
+            listener.onStart(connection, host, gameMode, fee);
         } else if (text.equals(DECLINE)) {
             cancel("상대의 코인이 부족해서 취소되었습니다");
         }
@@ -134,7 +134,7 @@ public class LobbyService {
     /** 방장이 보낸 "MODE:<모드>:<참가비>" 를 받아 수락하거나 거절한다. */
     private void handleOffer(String text) {
         String[] parts = text.split(":");
-        shared = parts[1].equals("SHARED");
+        gameMode = GameMode.valueOf(parts[1]);
         fee = Integer.parseInt(parts[2]);
 
         if (Wallet.coins() < fee) {
@@ -144,7 +144,7 @@ public class LobbyService {
         }
         Wallet.addCoins(-fee);
         connection.send(ACCEPT);
-        listener.onStart(connection, host, shared, fee);
+        listener.onStart(connection, host, gameMode, fee);
     }
 
     private void cancel(String message) {

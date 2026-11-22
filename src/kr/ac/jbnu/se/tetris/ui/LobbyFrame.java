@@ -5,6 +5,7 @@ import kr.ac.jbnu.se.tetris.network.PeerConnection;
 import kr.ac.jbnu.se.tetris.save.Wallet;
 import kr.ac.jbnu.se.tetris.shared.SharedClientFrame;
 import kr.ac.jbnu.se.tetris.shared.SharedHostFrame;
+import kr.ac.jbnu.se.tetris.network.GameMode;
 
 import javax.swing.JFrame;
 
@@ -18,8 +19,6 @@ import javax.swing.JFrame;
  */
 class LobbyFrame extends MenuScreen implements LobbyService.Listener {
 
-	/** 방장이 고르는 모드. 두 번째가 땅따먹기다. */
-	private static final String[] MODES = { "클래식", "땅따먹기" };
 
 	private final MainFrame frame;
 	private final transient LobbyService service = new LobbyService(this);
@@ -55,15 +54,15 @@ class LobbyFrame extends MenuScreen implements LobbyService.Listener {
 
 	/** 모드 -> 참가비 -> 방 열기. 덮개는 모달이 아니라서 한 단계씩 이어 간다. */
 	private void createRoom() {
-		frame.showChoice("게임 모드를 고르세요", MODES[0], MODES[1], mode -> {
-			if (mode == null)
+		frame.showChoice("게임 모드를 고르세요", GameMode.CLASSIC.label(), GameMode.SHARED.label(), choice -> {
+			if (choice == null)
 				return;
-			askFee(mode.equals(MODES[1]));
+			askFee(choice.equals(GameMode.SHARED.label()) ? GameMode.SHARED : GameMode.CLASSIC);
 		});
 	}
 
 	/** 참가비를 묻고, 걸 수 있는 금액이면 방을 연다. */
-	private void askFee(boolean shared) {
+	private void askFee(GameMode gameMode) {
 		frame.showInput("참가비 (" + LobbyService.MIN_FEE + " 이상, 내 코인 " + Wallet.coins() + ")", "", input -> {
 			if (input == null)
 				return;
@@ -78,15 +77,15 @@ class LobbyFrame extends MenuScreen implements LobbyService.Listener {
 				fail("참가비는 " + LobbyService.MIN_FEE + " 이상, 내 코인 이하여야 합니다");
 				return;
 			}
-			openRoom(shared, fee);
+			openRoom(gameMode, fee);
 		});
 	}
 
-	private void openRoom(boolean shared, int fee) {
+	private void openRoom(GameMode gameMode, int fee) {
 		busy = true;
 		status = waitingMessage();
 		repaint();
-		service.openRoom(shared, fee);
+		service.openRoom(gameMode, fee);
 	}
 
 	private void fail(String message) {
@@ -132,8 +131,8 @@ class LobbyFrame extends MenuScreen implements LobbyService.Listener {
 	}
 
 	@Override
-	public void onStart(PeerConnection connection, boolean host, boolean shared, int fee) {
-		if (shared)
+	public void onStart(PeerConnection connection, boolean host, GameMode gameMode, int fee) {
+		if (gameMode == GameMode.SHARED)
 			openSharedWindow(connection, host, fee);
 		else
 			frame.showVersus(connection, fee);
