@@ -69,25 +69,35 @@ public class AIplayer {
             plan = null;
             return;
         }
-        Shape piece = game.getCurPiece();
 
         if (game.getCurY() > lastY) {
             plan = null;
         }
         lastY = game.getCurY();
 
-        if (plan == null) {
-            if (Math.random() < mistakeRate) {
-                plan = ai.findRandomMove(game, piece);
-            } else {
-                plan = ai.findBestMove(game, piece);
-            }
-            if (plan == null) {
-                return;
-            }
-            rotationsLeft = plan.rotationCount;
+        if (plan == null && !makePlan(game.getCurPiece())) {
+            return;
         }
+        doOneAction();
+        view.repaint();
+    }
 
+    /** 지금 블록을 어디에 놓을지 정한다. 놓을 곳이 없으면 false. */
+    private boolean makePlan(Shape piece) {
+        if (Math.random() < mistakeRate) {
+            plan = ai.findRandomMove(game, piece);
+        } else {
+            plan = ai.findBestMove(game, piece);
+        }
+        if (plan == null) {
+            return false;
+        }
+        rotationsLeft = plan.rotationCount;
+        return true;
+    }
+
+    /** 계획대로 한 동작만 한다: 회전 -> 좌우 이동 -> 내리기. */
+    private void doOneAction() {
         if (rotationsLeft > 0) {
             if (game.rotateRight()) {
                 rotationsLeft--;
@@ -102,6 +112,5 @@ public class AIplayer {
         } else {
             game.moveDown();
         }
-        view.repaint();
     }
 }
