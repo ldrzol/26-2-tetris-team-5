@@ -16,8 +16,6 @@ import javax.swing.Timer;
 /** 1인 모드 화면. Figma "Desktop - 6". */
 class SinglePanel extends DesignPanel {
 
-	private static final int TIME_LIMIT = 300;   // 5분
-
 	/** 이 레벨을 깨면 숨은 레벨(다방향 테트리스)이 열린다. */
 	private static final int HIDDEN_LEVEL = 5;
 
@@ -59,8 +57,8 @@ class SinglePanel extends DesignPanel {
 	private final MainFrame frame;
 	private final Board board;
 	private String notice = "";
-	private String timeText = "05:00";
-	private int remain = TIME_LIMIT;
+	private String timeText = "00:00";
+	private int elapsed = 0;
 
 	// 보드가 바뀔 때 알려 주지 않아서, 1초마다 점수와 남은 시간을 읽어 간다.
 	private final Timer clock = new Timer(1000, e -> tick());
@@ -192,11 +190,11 @@ class SinglePanel extends DesignPanel {
 	}
 
 	private void tick() {
-		remain--;
-		timeText = mmss(remain);
+		elapsed++;
+		timeText = mmss(elapsed);
 		repaint();
 
-		if (remain <= 0 || board.getGame().isGameOver()) {
+		if (board.getGame().isGameOver()) {
 			clock.stop();
 			board.setPaused(true);
 			finish();

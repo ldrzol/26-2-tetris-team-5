@@ -5,11 +5,7 @@ Java Swing 으로 만든 테트리스. 1인 모드, 2인 대전(네트워크/AI)
 
 ## 실행
 
-JDK 17 이상이면 된다. (개발은 JDK 25 에서 했다)
-
-IntelliJ 에서는 `src/kr/ac/jbnu/se/tetris/ui/MainFrame.java` 의 `main` 을 그냥 실행하면 된다.
-
-터미널에서 실행할 때는 그림·글꼴이 `src` 아래에 있으므로 클래스패스에 `src` 를 같이 넣어야 한다.
+IntelliJ 에서는 `src/kr/ac/jbnu/se/tetris/ui/MainFrame.java` 을 실행하면 된다.
 
 ```bash
 javac -encoding UTF-8 -d out $(find src -name "*.java")
