@@ -26,6 +26,11 @@ abstract class SharedFrame extends JFrame {
     protected final int fee;
     protected final transient Runnable onExit;
     protected boolean settled = false;
+    /** [버그 14] 참가자가 창을 열고 준비됐다는 신호. */
+    protected static final String READY = "SHARED_READY";
+
+    /** [버그 14] 카운트다운 신호. 뒤에 남은 초가 붙는다. 예: "COUNT:3" */
+    protected static final String COUNT = "COUNT:";
 
     protected SharedFrame(PeerConnection connection, int fee, Runnable onExit, String title) {
         this.connection = connection;
