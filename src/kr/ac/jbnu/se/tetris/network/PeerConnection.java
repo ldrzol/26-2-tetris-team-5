@@ -22,6 +22,11 @@ public class PeerConnection {
 	private volatile Consumer<Object> listener;
 	/** 접속을 기다리는 최대 시간. 이보다 오래 걸리면 실패로 본다. */
 	private static final int CONNECT_TIMEOUT_MS = 5000;
+	/** 상대와 연결이 끊어졌을 때 할 일. 받는 스레드에서 불린다. */
+	private volatile Runnable onDisconnected = () -> { };
+
+	/** 내가 close() 로 닫았는지. 내가 닫은 건 끊김으로 알리지 않는다. */
+	private volatile boolean closed = false;
 
 	/** 방을 열고 상대가 들어올 때까지 기다린다. 들어오면 대기용 소켓은 닫는다. */
 	public static PeerConnection host(int port, Consumer<Object> listener) throws IOException {
@@ -68,12 +73,18 @@ public class PeerConnection {
 		this.listener = listener;
 	}
 
+	/** 상대와 연결이 끊어졌을 때 할 일을 정한다. 받는 스레드에서 불리므로 화면은 invokeLater 로 바꿔야 한다. */
+	public void setOnDisconnected(Runnable onDisconnected) {
+		this.onDisconnected = onDisconnected;
+	}
+
 	private void receiveLoop() {
 		try {
 			while (true)
 				listener.accept(in.readObject());
 		} catch (IOException | ClassNotFoundException e) {
-			System.out.println("연결이 끊어졌습니다.");
+			if (!closed)
+				onDisconnected.run();
 		}
 	}
 
@@ -87,6 +98,7 @@ public class PeerConnection {
 	}
 
 	public void close() {
+		closed = true;
 		try {
 			socket.close();
 		} catch (IOException ignored) {

@@ -99,6 +99,8 @@ public class LobbyService {
     }
 
     private void onConnected(String text) {
+        connection.setOnDisconnected(() -> SwingUtilities.invokeLater(
+                () -> listener.onFailed("상대와 연결이 끊어졌습니다")));
         if (host) {
             listener.onStatus(text + " - 상대 준비를 기다리는 중...");
         } else {
@@ -134,7 +136,7 @@ public class LobbyService {
             }
             Wallet.addCoins(-fee);
             connection.send(START);
-            listener.onStart(connection, host, gameMode, fee);
+            startGame();
         } else if (text.equals(DECLINE)) {
             cancel("상대의 코인이 부족해서 취소되었습니다");
         }
@@ -145,7 +147,7 @@ public class LobbyService {
             handleOffer(text);
         } else if (text.equals(START)) {
             Wallet.addCoins(-fee);
-            listener.onStart(connection, host, gameMode, fee);
+            startGame();
         } else if (text.equals(CANCEL)) {
             cancel("방장의 코인이 부족해서 취소되었습니다");
         }
@@ -179,6 +181,11 @@ public class LobbyService {
             return false;
         }
         return fee >= MIN_FEE;
+    }
+    /** 게임을 시작한다. 끊김 처리는 이제 게임 화면이 정하므로 로비 것은 지운다. */
+    private void startGame() {
+        connection.setOnDisconnected(() -> { });
+        listener.onStart(connection, host, gameMode, fee);
     }
 
     private void cancel(String message) {
