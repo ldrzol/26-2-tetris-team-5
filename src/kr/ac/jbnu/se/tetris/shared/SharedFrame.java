@@ -13,6 +13,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 
 import kr.ac.jbnu.se.tetris.network.InputMessage;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
@@ -35,12 +36,15 @@ abstract class SharedFrame extends JFrame {
 
         setupKeys();
         connection.setListener(this::onMessage);
+        // [버그 11] 상대가 사라지면(창 닫기, 랜선 빠짐, 먹통) 안내한다. 받는 스레드에서 불리므로 화면 스레드로 넘긴다.
+        connection.setOnDisconnected(() -> SwingUtilities.invokeLater(this::onDisconnected));
 
         setTitle(title);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosed(WindowEvent e) {
+                onClosed();   // [버그 9] 하위 클래스가 정리할 것 (방장 타이머 멈추기)
                 connection.close();
                 onExit.run();
             }
@@ -52,6 +56,21 @@ abstract class SharedFrame extends JFrame {
 
     /** 내가 키를 눌렀을 때 (방장은 직접 움직이고, 참가자는 방장에게 보냄). */
     protected abstract void onKey(InputMessage.Action action);
+
+    /** [버그 9] 창이 닫히거나 게임을 더 진행할 수 없을 때 하위 클래스가 정리할 것. */
+    protected void onClosed() {
+        // 기본은 정리할 것이 없다. 방장은 블록 떨어뜨리는 타이머를 멈춘다.
+    }
+
+    /** [버그 11] 상대와 연결이 끊겼을 때. 아직 결과가 안 났으면 멈추고 안내만 띄운다. */
+    private void onDisconnected() {
+        if (settled) {
+            return;   // 이미 결과가 나왔으면 할 것이 없다
+        }
+        settled = true;   // 끊긴 뒤에는 결과·정산을 하지 않는다 (끊겼을 때 정산 규칙은 팀과 정하기)
+        onClosed();
+        scoreLabel.setText("상대와 연결이 끊어졌습니다 - 창을 닫으면 메뉴로 돌아갑니다");
+    }
 
     private void setupKeys() {
         bind(KeyEvent.VK_LEFT, "left", InputMessage.Action.LEFT);
