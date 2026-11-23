@@ -6,7 +6,7 @@ public class InputMessage implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public enum Action {
-        LEFT, RIGHT, ROTATE, DOWN, DROP
+        LEFT, RIGHT, ROTATE, ROTATE_LEFT, DOWN, DROP, HOLD
     }
 
     public final Action action;

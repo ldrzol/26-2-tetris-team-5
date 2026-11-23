@@ -1,52 +1,28 @@
 package kr.ac.jbnu.se.tetris.shared;
 
-import java.awt.BorderLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
-
-import javax.swing.AbstractAction;
-import javax.swing.InputMap;
-import javax.swing.JComponent;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 
 import kr.ac.jbnu.se.tetris.network.InputMessage;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
 import kr.ac.jbnu.se.tetris.network.SharedStateMessage;
 
-public class SharedClientFrame extends JFrame {
-    private final SharedBoardView view = new SharedBoardView();
-    private final JLabel scoreLabel = new JLabel(" ", JLabel.CENTER);
-    private final PeerConnection connection;
-    private final int fee;
-    private final Runnable onExit;
-    private boolean settled = false;
+public class SharedClientFrame extends SharedFrame {
 
     public SharedClientFrame(PeerConnection connection, int fee, Runnable onExit) {
-        this.connection = connection;
-        this.fee = fee;
-        this.onExit = onExit;
-        add(scoreLabel, BorderLayout.NORTH);
-        add(view, BorderLayout.CENTER);
-
-        setupKeys();
-        connection.setListener(this::onMessage);
-
-        setTitle("땅따먹기 - 상대 (내 블록: 검은 테두리)");
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosed(java.awt.event.WindowEvent e) {
-                connection.close();
-                onExit.run();
-            }
-        });
+        super(connection, fee, onExit, "땅따먹기 - 상대 (내 블록: 검은 테두리)");
+        scoreLabel.setText("방장이 시작하기를 기다리는 중...");
         pack();
+        connection.send(READY);   // [버그 14] 내 창이 준비됐다고 방장에게 알린다
     }
 
-    private void onMessage(Object message) {
+    @Override
+    protected void onMessage(Object message) {
+        if (message instanceof String && ((String) message).startsWith(COUNT)) {
+            // [버그 14] 방장이 보낸 카운트다운을 그대로 띄운다
+            String text = ((String) message).substring(COUNT.length()) + "초 뒤에 시작합니다";
+            SwingUtilities.invokeLater(() -> scoreLabel.setText(text));
+            return;
+        }
         if (!(message instanceof SharedStateMessage)) {
             return;
         }
@@ -61,21 +37,8 @@ public class SharedClientFrame extends JFrame {
         });
     }
 
-    private void setupKeys() {
-        bind(KeyEvent.VK_LEFT, "left", InputMessage.Action.LEFT);
-        bind(KeyEvent.VK_RIGHT, "right", InputMessage.Action.RIGHT);
-        bind(KeyEvent.VK_UP, "rotate", InputMessage.Action.ROTATE);
-        bind(KeyEvent.VK_DOWN, "down", InputMessage.Action.DOWN);
-        bind(KeyEvent.VK_SPACE, "drop", InputMessage.Action.DROP);
-    }
-
-    private void bind(int keyCode, String name, InputMessage.Action action) {
-        InputMap im = getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
-        im.put(KeyStroke.getKeyStroke(keyCode, 0), name);
-        getRootPane().getActionMap().put(name, new AbstractAction() {
-            public void actionPerformed(ActionEvent e) {
-                connection.send(new InputMessage(action));
-            }
-        });
+    @Override
+    protected void onKey(InputMessage.Action action) {
+        connection.send(new InputMessage(action));
     }
 }

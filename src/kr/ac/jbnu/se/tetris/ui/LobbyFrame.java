@@ -1,16 +1,13 @@
 package kr.ac.jbnu.se.tetris.ui;
 
+import kr.ac.jbnu.se.tetris.network.LobbyService;
+import kr.ac.jbnu.se.tetris.network.PeerConnection;
 import kr.ac.jbnu.se.tetris.save.Wallet;
 import kr.ac.jbnu.se.tetris.shared.SharedClientFrame;
 import kr.ac.jbnu.se.tetris.shared.SharedHostFrame;
-
-import java.io.IOException;
-import java.net.InetAddress;
+import kr.ac.jbnu.se.tetris.network.GameMode;
 
 import javax.swing.JFrame;
-import javax.swing.SwingUtilities;
-
-import kr.ac.jbnu.se.tetris.network.PeerConnection;
 
 /**
  * 2인 대전 로비. Figma "Desktop - 12".
@@ -18,37 +15,16 @@ import kr.ac.jbnu.se.tetris.network.PeerConnection;
  * 메뉴 모양은 다른 메뉴 화면과 같고, 두 항목이 방 만들기 / 방 참가다.
  * 연결 진행 상황은 디자인에 없지만 없으면 쓸 수 없으므로 상자 아래에 한 줄로 띄운다.
  *
- * 연결한 뒤에는 방장이 모드와 참가비를 알리고, 참가자가 코인을 보고 수락하거나 거절한다.
+ * 연결, 신호, 참가비 정산은 LobbyService 가 하고, 이 클래스는 화면만 맡는다.
  */
-class LobbyFrame extends MenuScreen {
+class LobbyFrame extends MenuScreen implements LobbyService.Listener {
 
-	private static final int PORT = 5000;
-
-	/** 참가비 하한. 이보다 적게는 걸 수 없다. */
-	private static final int MIN_FEE = 100;
-
-	/** 방장이 고르는 모드. 두 번째가 땅따먹기다. */
-	private static final String[] MODES = { "클래식", "땅따먹기" };
-
-	// 연결한 뒤 주고받는 신호. 둘 다 같은 문자열을 봐야 한다.
-	private static final String READY = "READY";
-	private static final String ACCEPT = "ACCEPT";
-	private static final String DECLINE = "DECLINE";
-	private static final String MODE = "MODE:";
 
 	private final MainFrame frame;
-	private PeerConnection connection;
+	private final transient LobbyService service = new LobbyService(this);
 
 	private String status = null;
 	private boolean busy = false;
-
-	/** 내가 방을 연 쪽인지. 방장만 모드와 참가비를 정한다. */
-	private boolean host = false;
-
-	/** 땅따먹기면 true, 클래식 대전이면 false. */
-	private boolean shared = false;
-
-	private int fee;
 
 	LobbyFrame(MainFrame frame) {
 		super(new String[] { "멀티 모드", "- 2인 -" }, new float[] { 128f, 96f }, 252,
@@ -78,47 +54,38 @@ class LobbyFrame extends MenuScreen {
 
 	/** 모드 -> 참가비 -> 방 열기. 덮개는 모달이 아니라서 한 단계씩 이어 간다. */
 	private void createRoom() {
-		frame.showChoice("게임 모드를 고르세요", MODES[0], MODES[1], mode -> {
-			if (mode == null)
+		frame.showChoice("게임 모드를 고르세요", GameMode.CLASSIC.label(), GameMode.SHARED.label(), choice -> {
+			if (choice == null)
 				return;
-			shared = mode.equals(MODES[1]);
-			askFee();
+			askFee(choice.equals(GameMode.SHARED.label()) ? GameMode.SHARED : GameMode.CLASSIC);
 		});
 	}
 
 	/** 참가비를 묻고, 걸 수 있는 금액이면 방을 연다. */
-	private void askFee() {
-		frame.showInput("참가비 (" + MIN_FEE + " 이상, 내 코인 " + Wallet.coins() + ")", "", input -> {
+	private void askFee(GameMode gameMode) {
+		frame.showInput("참가비 (" + LobbyService.MIN_FEE + " 이상, 내 코인 " + Wallet.coins() + ")", "", input -> {
 			if (input == null)
 				return;
+			int fee;
 			try {
 				fee = Integer.parseInt(input.trim());
 			} catch (NumberFormatException e) {
 				fail("참가비는 숫자로 입력하세요");
 				return;
 			}
-			if (fee < MIN_FEE || fee > Wallet.coins()) {
-				fail("참가비는 " + MIN_FEE + " 이상, 내 코인 이하여야 합니다");
+			if (!service.isValidFee(fee)) {
+				fail("참가비는 " + LobbyService.MIN_FEE + " 이상, 내 코인 이하여야 합니다");
 				return;
 			}
-			openRoom();
+			openRoom(gameMode, fee);
 		});
 	}
 
-	private void openRoom() {
-		host = true;
+	private void openRoom(GameMode gameMode, int fee) {
 		busy = true;
 		status = waitingMessage();
 		repaint();
-
-		new Thread(() -> {
-			try {
-				connection = PeerConnection.host(PORT, this::onMessage);
-				SwingUtilities.invokeLater(() -> onConnected("상대가 들어왔습니다"));
-			} catch (IOException e) {
-				SwingUtilities.invokeLater(() -> onFailed("방 만들기 실패: " + e.getMessage()));
-			}
-		}).start();
+		service.openRoom(gameMode, fee);
 	}
 
 	private void fail(String message) {
@@ -128,16 +95,13 @@ class LobbyFrame extends MenuScreen {
 
 	/** 내 IP 를 알 수 있으면 같이 알려 준다. 못 찾아도 방은 열린다. */
 	private String waitingMessage() {
-		try {
-			return "내 IP: " + InetAddress.getLocalHost().getHostAddress()
-					+ " (포트 " + PORT + ") - 상대를 기다리는 중...";
-		} catch (IOException e) {
+		String ip = service.localAddress();
+		if (ip == null)
 			return "내 IP를 알 수 없음. 상대를 기다리는 중...";
-		}
+		return "내 IP: " + ip + " (포트 " + LobbyService.PORT + ") - 상대를 기다리는 중...";
 	}
 
 	private void joinRoom() {
-		host = false;
 		frame.showInput("방장의 IP를 입력하세요", "", ip -> {
 			if (ip != null && !ip.trim().isEmpty())
 				connect(ip.trim());
@@ -148,88 +112,28 @@ class LobbyFrame extends MenuScreen {
 		busy = true;
 		status = ip + " 에 접속하는 중...";
 		repaint();
-
-		new Thread(() -> {
-			try {
-				connection = PeerConnection.connect(ip, PORT, this::onMessage);
-				SwingUtilities.invokeLater(() -> onConnected("방에 들어갔습니다"));
-			} catch (IOException e) {
-				SwingUtilities.invokeLater(() -> onFailed("접속 실패: " + e.getMessage()));
-			}
-		}).start();
+		service.joinRoom(ip);
 	}
 
-	private void onConnected(String text) {
-		if (host) {
-			status = text + " - 상대 준비를 기다리는 중...";
-		} else {
-			status = text + " - 방장이 시작하기를 기다리는 중...";
-			connection.send(READY);
-		}
+	// LobbyService 가 알려 주는 일
+
+	@Override
+	public void onStatus(String text) {
+		status = text;
 		repaint();
 	}
 
-	private void onFailed(String text) {
+	@Override
+	public void onFailed(String text) {
 		busy = false;
 		status = text;
 		repaint();
 	}
 
-	// 신호 주고받기
-
-	private void onMessage(Object message) {
-		if (message instanceof String)
-			SwingUtilities.invokeLater(() -> handleText((String) message));
-	}
-
-	private void handleText(String text) {
-		if (host)
-			handleAsHost(text);
-		else if (text.startsWith(MODE))
-			handleOffer(text);
-	}
-
-	private void handleAsHost(String text) {
-		if (text.equals(READY)) {
-			connection.send(MODE + (shared ? "SHARED" : "CLASSIC") + ":" + fee);
-			status = "참가비 " + fee + " 코인 - 상대의 확인을 기다리는 중...";
-			repaint();
-		} else if (text.equals(ACCEPT)) {
-			Wallet.addCoins(-fee);
-			openGame();
-		} else if (text.equals(DECLINE)) {
-			cancel("상대의 코인이 부족해서 취소되었습니다");
-		}
-	}
-
-	/** 방장이 보낸 "MODE:<모드>:<참가비>" 를 받아 수락하거나 거절한다. */
-	private void handleOffer(String text) {
-		String[] parts = text.split(":");
-		shared = parts[1].equals("SHARED");
-		fee = Integer.parseInt(parts[2]);
-
-		if (Wallet.coins() < fee) {
-			connection.send(DECLINE);
-			cancel("코인이 부족합니다 (참가비 " + fee + ")");
-			return;
-		}
-		Wallet.addCoins(-fee);
-		connection.send(ACCEPT);
-		openGame();
-	}
-
-	private void cancel(String message) {
-		connection.close();
-		busy = false;
-		status = message;
-		repaint();
-	}
-
-	// 게임 시작
-
-	private void openGame() {
-		if (shared)
-			openSharedWindow();
+	@Override
+	public void onStart(PeerConnection connection, boolean host, GameMode gameMode, int fee) {
+		if (gameMode == GameMode.SHARED)
+			openSharedWindow(connection, host, fee);
 		else
 			frame.showVersus(connection, fee);
 	}
@@ -238,7 +142,7 @@ class LobbyFrame extends MenuScreen {
 	 * 땅따먹기는 판 모양이 달라서 아직 디자인 화면에 들어가 있지 않다. 따로 창을 띄우고,
 	 * 그동안 메인 창은 숨겨 뒀다가 끝나면 다시 보여 준다.
 	 */
-	private void openSharedWindow() {
+	private void openSharedWindow(PeerConnection connection, boolean host, int fee) {
 		Runnable onExit = () -> {
 			frame.setVisible(true);
 			frame.showScreen(MainFrame.MENU);
