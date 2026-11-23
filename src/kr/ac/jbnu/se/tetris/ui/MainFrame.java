@@ -12,20 +12,23 @@ import javax.swing.SwingUtilities;
 
 import kr.ac.jbnu.se.tetris.ai.AIplayer;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
+import kr.ac.jbnu.se.tetris.save.Wallet;
 
 /** 프로그램의 유일한 창. 모든 화면을 CardLayout 으로 갈아 끼운다. */
 public class MainFrame extends JFrame {
 
-	static final String MENU = "menu";         // Figma Desktop - 5
-	static final String MULTI = "multi";       // Figma Desktop - 13
-	static final String LOBBY = "lobby";       // Figma Desktop - 12
-	static final String SINGLE = "single";     // Figma Desktop - 6
-	static final String VERSUS = "versus";     // Figma Desktop - 9
-	static final String LOCAL = "local";       // Figma Desktop - 9 (한 PC 에서 둘이)
-	static final String PRACTICE = "practice"; // Figma Desktop - 9 (상대가 AI)
-	static final String SETTINGS = "settings"; // Figma 환경 설정 화면
-	static final String RANKING = "ranking";   // Figma 랭킹 화면
-	static final String SHOP = "shop";         // 상점 화면
+	static final String MENU = "menu";         // Figma 리팩 - 메인 화면
+	static final String MODE = "mode";         // Figma 리팩 - 모드 선택 (게임 선택)
+	static final String MULTI = "multi";       // Figma 리팩 - 2인 모드 세부 선택
+	static final String LOBBY = "lobby";       // Figma 리팩 - 2인 모드 방 생성 (네트워크 대전)
+	static final String SINGLE = "single";     // Figma 리팩 - 1인 모드
+	static final String VERSUS = "versus";     // Figma 리팩 - 2인 모드(두 화면), 네트워크
+	static final String LOCAL = "local";       // Figma 리팩 - 2인 모드(두 화면), 한 PC 에서 둘이
+	static final String PRACTICE = "practice"; // Figma 리팩 - 2인 모드(두 화면), 상대가 AI
+	static final String SHARED = "shared";     // Figma 리팩 - 2인 모드(한 화면), 땅따먹기
+	static final String SETTINGS = "settings"; // Figma 리팩 - 설정 화면
+	static final String RANKING = "ranking";   // Figma 리팩 - 랭킹 화면
+	static final String SHOP = "shop";         // Figma 리팩 - 상점 화면
 	static final String HIDDEN = "hidden";     // 숨은 레벨 (다방향 테트리스)
 
 	private final CardLayout cards = new CardLayout();
@@ -74,27 +77,33 @@ public class MainFrame extends JFrame {
 
 		// 게임이 아닌 화면의 톱니는 환경 설정으로 간다. 뒤로 가면 이 화면으로 돌아온다.
 		// (게임 화면은 톱니에 일시정지를 걸어 두므로 건드리지 않는다)
-		if (panel instanceof MenuScreen || panel instanceof RankingScreen || panel instanceof ShopScreen)
-			((DesignPanel) panel).onGear(() -> show(new SettingsScreen(() -> showScreen(name)), SETTINGS));
+		if (panel instanceof RankingScreen || panel instanceof ShopScreen)
+			((DesignPanel) panel).onGear(() -> showSettings(name));
+	}
+
+	/** 환경 설정을 띄운다. 뒤로 가면 back 화면을 새로 만든다. */
+	void showSettings(String back) {
+		show(new SettingsScreen(() -> showScreen(back)), SETTINGS);
 	}
 
 	private JPanel createScreen(String name) {
 		switch (name) {
+			case MODE:
+				return new MenuScreen("게임 선택", new String[] { "1인 모드", "2인 모드", "AI 모드" },
+						i -> showScreen(i == 0 ? RANKING : i == 1 ? MULTI : AI_LEVEL), () -> showScreen(MENU), false);
 			case MULTI:
-				return new MenuScreen(new String[] { "멀티 모드" }, new float[] { 128f }, 252,
-						new String[] { "2인 대전", "한 화면 2인", "AI 대전" },
-						i -> showScreen(i == 0 ? LOBBY : i == 1 ? LOCAL : AI_LEVEL));
+				return new MenuScreen("2인 모드 선택", new String[] { "네트워크 대전", "한 화면 대전" },
+						i -> showScreen(i == 0 ? LOBBY : LOCAL), () -> showScreen(MODE), true);
 			case AI_LEVEL:
-				return new MenuScreen(new String[] { "AI 대전" }, new float[] { 128f }, 252,
-						new String[] { "쉬움", "보통", "어려움" },
+				return new MenuScreen("AI 모드", new String[] { "쉬움", "보통", "어려움" },
 						i -> {
 							aiLevel = AIplayer.Level.values()[i];
 							showScreen(PRACTICE);
-						});
+						}, () -> showScreen(MODE), false);
 			case LOBBY:
 				return new LobbyFrame(this);
 			case RANKING:
-				return new RankingScreen(() -> showScreen(SINGLE), () -> showScreen(MENU));
+				return new RankingScreen(() -> showScreen(SINGLE), () -> showScreen(MODE));
 			case SHOP:
 				return new ShopScreen(() -> showScreen(MENU));
 			case SINGLE:
@@ -106,9 +115,14 @@ public class MainFrame extends JFrame {
 			case LOCAL:
 				return new VersusPanel(this, LOCAL, false);     // 두 보드를 한 PC 에서 둘이 잡는다
 			default:
-				return new MenuScreen(new String[] { "TETRIS" }, new float[] { 250f }, 274,
-						new String[] { "1인 모드", "멀티 모드", "상점" },
-						i -> showScreen(i == 0 ? RANKING : i == 1 ? MULTI : SHOP));
+				return MenuScreen.home(i -> {
+					if (i == 0)
+						showScreen(MODE);
+					else if (i == 1)
+						showScreen(SHOP);
+					else
+						showSettings(MENU);
+				});
 		}
 	}
 
@@ -146,9 +160,9 @@ public class MainFrame extends JFrame {
 		}));
 	}
 
-	/** 레벨을 깼을 때 덮는 '레벨 클리어' 화면. '다음 레벨' 을 고르면 onNext 가 돈다. */
-	void showLevelClear(int level, int score, int coins, Runnable onNext) {
-		showOverlay(new LevelClearOverlay(level, score, coins,
+	/** 레벨을 깼을 때 덮는 'CLEAR!' 카드. '다음 레벨' 을 고르면 onNext 가 돈다. */
+	void showLevelClear(int score, int coins, String[] stats, Runnable onNext) {
+		showOverlay(new GameOverOverlay("CLEAR!", score, stats, coins, "다음 레벨",
 				() -> {
 					clearOverlay();
 					onNext.run();
@@ -156,19 +170,43 @@ public class MainFrame extends JFrame {
 				() -> showScreen(MENU)));
 	}
 
-	/** 게임 위에 반투명 GAME OVER 를 덮는다. kind 는 '다시 하기' 로 돌아갈 화면. coins 가 0이면 코인 줄을 그리지 않는다. */
-	void showGameOver(int score, int coins, String kind) {
-		showOverlay(new GameOverOverlay(score, coins, () -> showScreen(kind), () -> showScreen(MENU)));
+	/**
+	 * 게임 위에 GAME OVER 카드를 덮는다. kind 는 '다시하기' 로 돌아갈 화면.
+	 * stats 는 점수 아래 작은 줄들. coins 가 0이면 코인 줄을 그리지 않는다.
+	 */
+	void showGameOver(int score, int coins, String kind, String[] stats) {
+		String title = Wallet.cleared(score) ? "CLEAR!" : "GAME OVER";
+		showOverlay(new GameOverOverlay(title, score, stats, coins, "다시하기",
+				() -> showScreen(kind), () -> showScreen(MENU)));
 	}
 
-	/** 대전 결과. titles·scores 는 [0] = 왼쪽 보드, [1] = 오른쪽 보드. coins 는 정산으로 받은 코인. */
-	void showVersusResult(String[] titles, int[] scores, int coins, String kind) {
-		showOverlay(new GameOverOverlay(titles, scores, coins, () -> showScreen(kind), () -> showScreen(MENU)));
+	/** 대전 결과. 배열은 [0] = 왼쪽 보드, [1] = 오른쪽 보드. coins 는 정산으로 받은 코인. */
+	void showVersusResult(String[] names, String[] results, int[] scores, int[] lines, int[] items,
+			int coins, String kind) {
+		showOverlay(new GameOverOverlay(names, results, scores, lines, items,
+				coins > 0 ? "코인 +" + coins : null, "다시하기", () -> showScreen(kind), () -> showScreen(MENU)));
+	}
+
+	/** 땅따먹기 결과. note 는 정산 문구. 어느 버튼이든 누르면 onLeave 를 먼저 돌린다. (연결 닫기) */
+	void showSharedResult(String[] results, int[] scores, String note, Runnable onLeave) {
+		showOverlay(new GameOverOverlay(new String[] { "1P", "2P" }, results, scores, null, null, note,
+				"로비로", () -> {
+					onLeave.run();
+					showScreen(LOBBY);
+				}, () -> {
+					onLeave.run();
+					showScreen(MENU);
+				}));
 	}
 
 	/** 네트워크 2인 대전을 띄운다. 끝나면 참가비를 정산한다. */
 	void showVersus(PeerConnection connection, int fee) {
 		show(new VersusPanel(this, connection, fee), VERSUS);
+	}
+
+	/** 땅따먹기(넓은 판 하나를 둘이 같이 쓰는 모드)를 띄운다. */
+	void showShared(PeerConnection connection, boolean host, int fee) {
+		show(new SharedScreen(this, connection, host, fee), SHARED);
 	}
 
 	/**

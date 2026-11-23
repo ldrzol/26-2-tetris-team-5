@@ -1,12 +1,14 @@
 package kr.ac.jbnu.se.tetris.ui;
 
+import kr.ac.jbnu.se.tetris.game.Sfx;
+
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 
 /**
- * 게임 중 톱니를 눌렀을 때 덮이는 화면. Figma "리플레이 화면".
+ * 게임 중 톱니를 눌렀을 때 덮이는 화면. Figma "리팩 - 일시 정지".
  *
  * 게임 위에 반투명하게 덮인다. 마우스로 누르거나, ↑↓ 로 고르고 Enter 로 선택한다.
  *
@@ -15,26 +17,20 @@ import java.awt.event.KeyEvent;
  */
 class PauseOverlay extends DesignPanel {
 
-	// Figma "리플레이 화면" 수치 (디자인 기준 픽셀)
-	private static final Rectangle BOX_OUTER = new Rectangle(689, 333, 622, 757);
-	private static final Rectangle BOX_INNER = new Rectangle(697, 342, 606, 740);
-	private static final int BOX_BORDER = 8;
+	// Figma "리팩 - 일시 정지" 수치 (디자인 기준 픽셀)
+	private static final Rectangle CARD = new Rectangle(627, 255, 746, 912);
+	private static final int TITLE_TOP = 347;
+	private static final float TITLE_SIZE = 75f;
 
-	private static final int ITEM_X = 962;
-	private static final int ITEM_TOP = 511;
-	private static final int ITEM_GAP = 110;
-	private static final int ITEM_HEIGHT = 70;
-	private static final float ITEM_SIZE = 64f;
+	private static final int ITEM_X = 970, ITEM_TOP = 653, ITEM_STEP = 85, ITEM_H = 70;
+	private static final float ITEM_SIZE = 48f;
+	private static final int ARROW_RIGHT = 903, ARROW_SIZE = 50;
 
-	private static final Rectangle ARROW = new Rectangle(836, 511, 29, 54);
+	private static final String[] ITEMS = { "계속하기", "다시하기", "나가기", "설정으로" };
 
-	private static final String[] ITEMS = { "계속하기", "다시하기", "나가기", "환경설정" };
-
-	/** 상자 아래 조작키 목록 */
-	private static final int KEYS_TOP = 1120;
-	private static final int KEYS_STEP = 42;
-	private static final int KEYS_PAD = 14;
-	private static final float KEYS_SIZE = 26f;
+	/** 카드 아래 조작키 안내 (디자인에 없지만 있던 기능이라 남긴다) */
+	private static final int KEYS_TOP = 1200, KEYS_STEP = 38, KEYS_PAD = 12;
+	private static final float KEYS_SIZE = 24f;
 
 	private final Runnable[] actions;
 	private final String[] keyLines;
@@ -55,32 +51,31 @@ class PauseOverlay extends DesignPanel {
 
 	private void move(int d) {
 		selected = (selected + d + ITEMS.length) % ITEMS.length;
+		Sfx.play(Sfx.Sound.MOVE);
 		repaint();
 	}
 
-	/** 눌러서 고를 수 있는 한 줄. 글자보다 넉넉하게 상자 폭을 쓴다. */
+	/** 눌러서 고를 수 있는 한 줄. 글자보다 넉넉하게 카드 폭을 쓴다. */
 	private Rectangle row(int index) {
-		return new Rectangle(BOX_INNER.x, ITEM_TOP + index * ITEM_GAP, BOX_INNER.width, ITEM_HEIGHT);
+		return new Rectangle(CARD.x, ITEM_TOP + index * ITEM_STEP - 8, CARD.width, ITEM_H);
 	}
 
 	@Override
 	void paintDesign(Graphics2D g) {
-		g.setColor(SCRIM);
-		g.fillRect(0, 0, getWidth(), getHeight());
-
-		// 바깥 흐린 테두리 + 안쪽 크림 테두리 (두 겹)
-		outline(g, BOX_OUTER, DIM_CREAM, BOX_BORDER);
-		outline(g, BOX_INNER, Ui.CREAM, BOX_BORDER);
+		scrim(g);
+		darkCard(g, CARD);
+		textCentered(g, "일시 정지", TITLE_TOP, TITLE_SIZE, Color.WHITE);
 
 		for (int i = 0; i < ITEMS.length; i++)
-			text(g, ITEMS[i], ITEM_X, ITEM_TOP + i * ITEM_GAP, ITEM_SIZE, Color.WHITE);
+			text(g, ITEMS[i], ITEM_X, ITEM_TOP + i * ITEM_STEP, ITEM_SIZE, Color.WHITE);
+		arrow(g, ARROW_RIGHT, ITEM_TOP + selected * ITEM_STEP + 32, ARROW_SIZE);
 
-		drawImage(g, ARROW_ICON,
-				new Rectangle(ARROW.x, ARROW.y + selected * ITEM_GAP, ARROW.width, ARROW.height));
-
-		// 뒤 화면 글자와 섞이지 않게 바탕을 깐다
-		fill(g, new Rectangle(0, KEYS_TOP - KEYS_PAD, DESIGN_W, keyLines.length * KEYS_STEP + KEYS_PAD * 2), Ui.BG);
+		// 뒤 화면과 섞이지 않게 어두운 띠를 깔고 조작키를 적는다
+		g.setColor(new Color(58, 57, 52, 220));
+		Rectangle band = screen(new Rectangle(0, KEYS_TOP - KEYS_PAD, DESIGN_W,
+				keyLines.length * KEYS_STEP + KEYS_PAD * 2));
+		g.fillRect(0, band.y, getWidth(), band.height);
 		for (int i = 0; i < keyLines.length; i++)
-			textCentered(g, keyLines[i], KEYS_TOP + i * KEYS_STEP, KEYS_SIZE, Ui.CREAM, 0);
+			textCentered(g, keyLines[i], KEYS_TOP + i * KEYS_STEP, KEYS_SIZE, Color.WHITE);
 	}
 }

@@ -5,94 +5,53 @@ import kr.ac.jbnu.se.tetris.save.Ranking;
 import kr.ac.jbnu.se.tetris.save.Settings;
 import kr.ac.jbnu.se.tetris.save.Wallet;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.util.List;
 
 /**
- * 랭킹 화면. Figma "랭킹 화면".
+ * 랭킹 화면. Figma "리팩 - 랭킹 화면".
  *
- * 메인에서 1인 모드를 고르면 먼저 이 화면이 뜨고, 시작하기를 눌러야 게임이 시작된다.
+ * 게임 선택에서 1인 모드를 고르면 먼저 이 화면이 뜨고, 시작하기를 눌러야 게임이 시작된다.
  * 표는 Ranking 이 저장해 둔 기록을 점수 순으로 보여 준다.
  *
  * 걸린 시간은 Ranking.Entry 에 없어서 "--:--" 로 둔다. 시간까지 남기려면 Entry 에
- * 칸을 늘리고 SinglePanel 에서 넘겨야 한다.
+ * 칸을 늘리고 SinglePanel 에서 넘겨야 한다. 디자인의 순위 변동(▲6)도 같은 이유로 뺐다.
  */
 class RankingScreen extends DesignPanel {
 
-	private static final Image COIN_ICON = image("images/coin.png");
+	private static final int LIFT = 71;   // 어닝이 상자보다 71 위에서 시작한다
 
-	// Figma "랭킹 화면" 수치 (디자인 기준 픽셀)
-	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
+	private static final Rectangle LIST = new Rectangle(97, 341, 1285, 955);
+	private static final Rectangle ME = new Rectangle(1428, 341, 468, 955);
 
-	private static final float TAB_LABEL_SIZE = 36f;   // 랭킹 / 내 기록 탭
-	private static final float ROW_SIZE = 40f;         // 닉네임, 뒤로, 시작하기
-	private static final float SCORE_SIZE = 36f;
-	private static final float TIME_SIZE = 32f;
-	private static final float SMALL_SIZE = 30f;       // 표 머리, 순위, 보상
-	private static final float HINT_SIZE = 24f;
-	private static final float BIG_SIZE = 100f;        // 내 순위 숫자
+	// 랭킹 표 (Figma "랭킹 표")
+	private static final int TABLE_X = 140, TABLE_W = 1200;
+	private static final Rectangle WEEK_TOGGLE = new Rectangle(1114, 405, 226, 68);
+	private static final int HEAD_TOP = 479, HEAD_H = 46;
+	private static final int RANK_X = 152, NICK_X = 312, SCORE_RIGHT = 1128, TIME_RIGHT = 1328;
+	private static final int ROW_TOP = HEAD_TOP + HEAD_H, ROW_H = 60, ROWS = 10;
+	private static final int ELLIPSIS_TOP = 1125;
+	private static final Rectangle ME_ROW = new Rectangle(140, 1162, 1200, 64);
+	private static final Color[] MEDAL = { new Color(0xFFD45A), new Color(0xDDE1E6), new Color(0xE3A36B) };
+	private static final Color PLAIN_RING = new Color(0xE8C9B6);
 
-	private static final Rectangle BACK = new Rectangle(73, 66, 232, 81);
-	private static final Rectangle BACK_ARROW = new Rectangle(132, 88, 20, 37);
-	private static final int BACK_TEXT_X = 179, BACK_TEXT_TOP = 79;
-
-	private static final Rectangle TOP_COIN = new Rectangle(1546, 81, 51, 51);
-	private static final int TOP_COIN_TEXT_X = 1629, TOP_COIN_TEXT_TOP = 78;
-
-	private static final Rectangle RANK_TAB = new Rectangle(73, 201, 186, 62);
-	private static final Rectangle WEEK_BUTTON = new Rectangle(1139, 193, 104, 70);
-	private static final Rectangle ALL_BUTTON = new Rectangle(1243, 193, 104, 70);
-	private static final Rectangle MY_TAB = new Rectangle(1411, 201, 207, 70);
-
-	// 왼쪽 표
-	private static final Rectangle LIST = new Rectangle(73, 263, 1274, 1081);
-	private static final int HEAD_TOP = 326;
-	private static final int RANK_X = 154, NICK_X = 265, SCORE_X = 874, TIME_X = 1157;
-	private static final int HEAD_RANK_X = 156, HEAD_NICK_X = 284, HEAD_SCORE_X = 926, HEAD_TIME_X = 1182;
-	private static final int RANK_W = 64, RANK_H = 52;
-	private static final int[] ROW_TOP = { 397, 470, 538, 620, 688, 760, 828, 896, 968, 1036 };
-	/** 점수와 시간은 닉네임보다 조금 아래에 있다 */
-	private static final int VALUE_DROP = 5;
-	/** 크림색 칸으로 강조하는 순위 수 */
-	private static final int HIGHLIGHT_RANKS = 3;
-
-	private static final int DIVIDER_X = 133, DIVIDER_W = 1154;
-	private static final int[] DIVIDER_TOP = { 383, 606 };
-	private static final int DIVIDER_THICK = 4;
-
-	private static final int ELLIPSIS_X = 674, ELLIPSIS_TOP = 1075;
-	private static final float ELLIPSIS_SIZE = 64f;
-
-	private static final Rectangle ME_ROW_OUTER = new Rectangle(123, 1191, 1174, 125);
-	private static final Rectangle ME_ROW_INNER = new Rectangle(136, 1204, 1149, 99);
-	private static final int ME_RANK_X = 159, ME_NICK_X = 261, ME_SCORE_X = 870, ME_TIME_X = 1153;
-	private static final int ME_RANK_TOP = 1233, ME_NICK_TOP = 1226, ME_VALUE_TOP = 1231;
-
-	// 오른쪽 내 기록
-	private static final Rectangle ME = new Rectangle(1411, 271, 514, 1073);
-	private static final int ME_LABEL_X = 1452, ME_VALUE_RIGHT = 1885;
-	private static final int ME_TITLE_TOP = 334;
-	private static final int MY_RANK_TOP = 401, MY_RANK_UNIT_X = 1618, MY_RANK_UNIT_TOP = 454;
-	private static final int ME_DIVIDER_X = 1443, ME_DIVIDER_W = 453;
-	private static final int[] ME_DIVIDER_TOP = { 529, 754 };
-	private static final int[] STAT_TOP = { 552, 619, 686 };
-	private static final int REWARD_TITLE_TOP = 775;
-	private static final int[] REWARD_TOP = { 842, 909, 976, 1043 };
-	private static final int REWARD_COIN_X = 1727, REWARD_COIN_SIZE = 37, REWARD_COIN_DROP = 4;
-	private static final int REWARD_VALUE_X = 1782;
-	private static final int DEADLINE_X = 1493, DEADLINE_TOP = 1285;
-	private static final Rectangle START = new Rectangle(1451, 1163, 434, 107);
+	// 내 기록 (Figma "내 기록 내용")
+	private static final int ME_X = 1462, ME_W = 400, ME_CENTER = ME_X + ME_W / 2;
+	private static final int ME_RIGHT = ME_X + ME_W;
+	private static final int[] STAT_TOP = { 616, 670, 724 };
+	private static final int REWARD_TITLE_TOP = 806;
+	private static final int[] REWARD_TOP = { 841, 887, 933, 979 };
+	private static final Rectangle START = new Rectangle(1462, 1130, 400, 88);
+	private static final int DEADLINE_TOP = 1232;
 
 	/** 기록이 없는 칸 */
 	private static final String NO_NAME = "-", NO_SCORE = "------", NO_TIME = "--:--", NO_RANK = "--";
 
-	private static final String[] STAT_LABELS = { "최고 점수", "걸린 시간", "횟수" };
-	private static final String[] REWARD_LABELS = { "1위", "2~3위", "4~" + Ranking.MAX + "위", "참여" };
+	private static final String[] STAT_LABELS = { "최고 점수", "걸린 시간", "플레이 횟수" };
+	private static final String[] REWARD_LABELS = { "1위", "2–3위", "4–" + Ranking.MAX + "위", "참여" };
 	private static final String[] REWARD_VALUES = {
 			coins(1), coins(2), coins(4), coins(Ranking.MAX + 1) };
 
@@ -112,10 +71,10 @@ class RankingScreen extends DesignPanel {
 
 	RankingScreen(Runnable onStart, Runnable onBack) {
 		claimLastWeek();
-		onClick(BACK, onBack);
+		onBack(onBack);
 		onClick(START, onStart);
-		onClick(WEEK_BUTTON, () -> setWeekly(true));
-		onClick(ALL_BUTTON, () -> setWeekly(false));
+		onClick(toggleHalf(WEEK_TOGGLE, true), () -> setWeekly(true));
+		onClick(toggleHalf(WEEK_TOGGLE, false), () -> setWeekly(false));
 
 		Ui.bind(this, KeyEvent.VK_ENTER, "rankStart", onStart);
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "rankBack", onBack);
@@ -172,125 +131,109 @@ class RankingScreen extends DesignPanel {
 	// 그리기
 	@Override
 	void paintDesign(Graphics2D g) {
-		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
+		background(g, SKY);
+		back(g);
+		titlePill(g, "랭킹");
+		coins(g, COIN_RIGHT, COIN_TOP);
+		gear(g);
 
-		outline(g, BACK);
-		drawImageFlipped(g, ARROW_ICON, BACK_ARROW);
-		text(g, "뒤로", BACK_TEXT_X, BACK_TEXT_TOP, ROW_SIZE, Ui.CREAM);
-
-		drawImage(g, COIN_ICON, TOP_COIN);
-		text(g, Wallet.coinText(), TOP_COIN_TEXT_X, TOP_COIN_TEXT_TOP, ROW_SIZE, Ui.CREAM);
-
-		tab(g, RANK_TAB, "랭킹", TAB_LABEL_SIZE);
-		pill(g, WEEK_BUTTON, "주간", weekly);
-		pill(g, ALL_BUTTON, "전체", !weekly);
-		tab(g, MY_TAB, "내 기록", TAB_LABEL_SIZE);
+		awningPanel(g, LIST, "랭킹", LIFT);
+		awningPanel(g, ME, "내 기록", LIFT);
 
 		list(g);
 		me(g);
-
-		gear(g);
-	}
-
-	/** 주간 / 전체 버튼. 고른 쪽만 크림색으로 채운다. */
-	private void pill(Graphics2D g, Rectangle r, String label, boolean on) {
-		if (on)
-			fill(g, r, Ui.CREAM);
-		else
-			outline(g, r, DIM_CREAM, BORDER);
-		textInBox(g, label, r, TIME_SIZE, on ? Color.BLACK : DIM_CREAM);
 	}
 
 	private void list(Graphics2D g) {
-		outline(g, LIST);
+		toggle(g, WEEK_TOGGLE, "주간", "전체", weekly, 28);
 
-		text(g, "순위", HEAD_RANK_X, HEAD_TOP, SMALL_SIZE, DIM_CREAM);
-		text(g, "닉네임", HEAD_NICK_X, HEAD_TOP, SMALL_SIZE, DIM_CREAM);
-		text(g, "점수", HEAD_SCORE_X, HEAD_TOP, SMALL_SIZE, DIM_CREAM);
-		text(g, "시간", HEAD_TIME_X, HEAD_TOP, SMALL_SIZE, DIM_CREAM);
+		text(g, "순위", RANK_X, HEAD_TOP + 7, 24, Ui.SUB_TEXT);
+		text(g, "닉네임", NICK_X, HEAD_TOP + 7, 24, Ui.SUB_TEXT);
+		textRight(g, "점수", SCORE_RIGHT, HEAD_TOP + 7, 24, Ui.SUB_TEXT);
+		textRight(g, "시간", TIME_RIGHT, HEAD_TOP + 7, 24, Ui.SUB_TEXT);
+		solid(g, TABLE_X, ROW_TOP, TABLE_W, Ui.DARK_BROWN, 3);
 
-		for (int top : DIVIDER_TOP)
-			divider(g, DIVIDER_X, top, DIVIDER_W);
+		for (int i = 0; i < ROWS; i++) {
+			boolean has = i < entries.size();
+			int top = ROW_TOP + i * ROW_H;
+			row(g, top, String.valueOf(i + 1), i < MEDAL.length ? MEDAL[i] : null,
+					has ? entries.get(i).name : NO_NAME,
+					has ? String.format("%06d", entries.get(i).score) : NO_SCORE, false);
+			dashed(g, TABLE_X, top + ROW_H, TABLE_W);
+		}
 
-		for (int i = 0; i < ROW_TOP.length; i++)
-			row(g, i);
+		textAt(g, "· · ·", TABLE_X + TABLE_W / 2.0, ELLIPSIS_TOP, 26, Ui.SUB_TEXT);
 
-		text(g, "...", ELLIPSIS_X, ELLIPSIS_TOP, ELLIPSIS_SIZE, Ui.CREAM);
-
-		// 내 기록 줄은 표 아래에 두 겹 테두리로 따로 둔다
-		outline(g, ME_ROW_OUTER);
-		outline(g, ME_ROW_INNER);
-		text(g, myRankText(), ME_RANK_X, ME_RANK_TOP, SMALL_SIZE, Ui.CREAM);
-		text(g, me + "(PLAYER)", ME_NICK_X, ME_NICK_TOP, ROW_SIZE, Ui.CREAM);
-		text(g, myScoreText(), ME_SCORE_X, ME_VALUE_TOP, SCORE_SIZE, Color.WHITE);
-		text(g, NO_TIME, ME_TIME_X, ME_VALUE_TOP, TIME_SIZE, Ui.CREAM);
+		// 내 기록 줄은 표 아래에 노란 칸으로 따로 둔다
+		box(g, ME_ROW, 14, Ui.YELLOW, null, 0, 0, null);
+		row(g, ME_ROW.y + 2, myRankText(), null, me, myScoreText(), true);
 	}
 
-	/** 표 한 줄. 상위 세 줄은 순위 칸을 크림색으로 채우고, 빈 자리는 줄표로 둔다. */
-	private void row(Graphics2D g, int index) {
-		int top = ROW_TOP[index];
-		Rectangle rank = new Rectangle(RANK_X, top, RANK_W, RANK_H);
-		boolean highlight = index < HIGHLIGHT_RANKS;
-		if (highlight)
-			fill(g, rank, Ui.CREAM);
-		textInBox(g, String.valueOf(index + 1), rank, SMALL_SIZE, highlight ? Color.BLACK : Ui.CREAM);
+	/** 표 한 줄. 상위 세 줄은 순위 동그라미를 금·은·동으로 칠한다. */
+	private void row(Graphics2D g, int top, String rank, Color medal, String name, String score, boolean mine) {
+		Rectangle circle = new Rectangle(RANK_X, top + 6, 48, 48);
+		box(g, circle, 24, medal != null ? medal : Color.WHITE, medal != null ? Ui.BROWN : PLAIN_RING, 3, 0, null);
+		textInBox(g, rank, circle, 24, Ui.TEXT);
 
-		boolean has = index < entries.size();
-		String name = has ? entries.get(index).name : NO_NAME;
-		String score = has ? String.format("%06d", entries.get(index).score) : NO_SCORE;
-
-		text(g, name, NICK_X, top, ROW_SIZE, Ui.CREAM);
-		text(g, score, SCORE_X, top + VALUE_DROP, SCORE_SIZE, has ? Color.WHITE : DIM_CREAM);
-		text(g, NO_TIME, TIME_X, top + VALUE_DROP, TIME_SIZE, Ui.CREAM);
-	}
-
-	/** 표를 가르는 가로줄. 디자인의 SVG 선을 같은 두께의 직선으로 그린다. */
-	private void divider(Graphics2D g, int designX, int designTop, int designWidth) {
-		g.setColor(Ui.CREAM);
-		g.setStroke(new BasicStroke(Math.max(1, sz(DIVIDER_THICK))));
-		g.drawLine(px(designX), py(designTop), px(designX + designWidth), py(designTop));
+		text(g, name, NICK_X, top + 9, 32, Ui.TEXT);
+		if (mine) {
+			int x = NICK_X + textWidth(g, name, 32) + 10;
+			Rectangle tag = new Rectangle(x, top + 15, 38, 30);
+			box(g, tag, 15, Ui.RED, null, 0, 0, null);
+			textInBox(g, "나", tag, 20, Color.WHITE);
+		}
+		textRight(g, score, SCORE_RIGHT, top + 9, 32, Ui.TEXT);
+		textRight(g, NO_TIME, TIME_RIGHT, top + 12, 28, Ui.SUB_TEXT);
 	}
 
 	private void me(Graphics2D g) {
-		outline(g, ME);
+		textAt(g, weekly ? "이번 주 랭킹" : "전체 랭킹", ME_CENTER, 405, 26, Ui.SUB_TEXT);
 
-		text(g, "랭킹", ME_LABEL_X, ME_TITLE_TOP, SMALL_SIZE, DIM_CREAM);
-		text(g, myRankText(), ME_LABEL_X, MY_RANK_TOP, BIG_SIZE, Color.WHITE);
-		text(g, "위", MY_RANK_UNIT_X, MY_RANK_UNIT_TOP, ROW_SIZE, Ui.CREAM);
+		// 큰 순위 숫자와 '위' 를 한 덩어리로 가운데에 놓는다
+		String rank = myRankText();
+		int rankW = textWidth(g, rank, 120), unitW = textWidth(g, "위", 52);
+		int x = ME_CENTER - (rankW + 8 + unitW) / 2;
+		text(g, rank, x, 438, 120, Ui.DARK_BROWN);
+		text(g, "위", x + rankW + 8, 501, 52, Ui.DARK_BROWN);
+		solid(g, ME_X, 602, ME_W, Ui.DARK_BROWN, 3);
 
-		for (int top : ME_DIVIDER_TOP)
-			divider(g, ME_DIVIDER_X, top, ME_DIVIDER_W);
-
-		// 값 칸은 디자인에 비어 있어서 오른쪽 끝에 맞춰 넣는다
-		String[] values = { myScoreText(), NO_TIME, String.valueOf(myCount()) };
+		String[] values = { myScoreText(), NO_TIME, myCount() + "판" };
 		for (int i = 0; i < STAT_LABELS.length; i++) {
-			text(g, STAT_LABELS[i], ME_LABEL_X, STAT_TOP[i], SMALL_SIZE, DIM_CREAM);
-			textRight(g, values[i], ME_VALUE_RIGHT, STAT_TOP[i], SMALL_SIZE, Ui.CREAM);
+			text(g, STAT_LABELS[i], ME_X, STAT_TOP[i] + 10, 26, Ui.TEXT);
+			textRight(g, values[i], ME_RIGHT, STAT_TOP[i] + 4, 36, Ui.TEXT);
+		}
+		dashed(g, ME_X, 792, ME_W);
+
+		text(g, "주간 보상", ME_X, REWARD_TITLE_TOP, 28, Ui.DARK_BROWN);
+		for (int i = 0; i < REWARD_LABELS.length; i++) {
+			int top = REWARD_TOP[i];
+			text(g, REWARD_LABELS[i], ME_X, top + 8, 24, Ui.TEXT);
+			int valueW = textWidth(g, REWARD_VALUES[i], 30);
+			textRight(g, REWARD_VALUES[i], ME_RIGHT, top + 4, 30, Ui.TEXT);
+			drawImage(g, COIN_ICON, new Rectangle(ME_RIGHT - valueW - 8 - 28, top + 9, 28, 28));
 		}
 
-		text(g, "주간 보상", ME_LABEL_X, REWARD_TITLE_TOP, SMALL_SIZE, DIM_CREAM);
-		for (int i = 0; i < REWARD_LABELS.length; i++) {
-			text(g, REWARD_LABELS[i], ME_LABEL_X, REWARD_TOP[i], SMALL_SIZE, Ui.CREAM);
-			drawImage(g, COIN_ICON, new Rectangle(REWARD_COIN_X, REWARD_TOP[i] + REWARD_COIN_DROP,
-					REWARD_COIN_SIZE, REWARD_COIN_SIZE));
-			text(g, REWARD_VALUES[i], REWARD_VALUE_X, REWARD_TOP[i], SMALL_SIZE, Ui.CREAM);
-		}
+		box(g, START, 44, Ui.RED, new Color(0x8E2E1E), 4, 6, new Color(0x8E2E1E));
+		int labelW = textWidth(g, "시작하기", 40);
+		int left = START.x + (START.width - (26 + 14 + labelW)) / 2;
+		whiteTriangle(g, left, START.y + START.height / 2.0, 26);
+		text(g, "시작하기", left + 40, START.y + 19, 40, Color.WHITE);
 
 		// 보상을 막 받았으면 그 안내를, 아니면 마감까지 남은 시간을 적는다 (자리가 한 줄뿐이다)
 		if (rewardNotice != null)
-			text(g, rewardNotice, DEADLINE_X, DEADLINE_TOP, HINT_SIZE, Color.WHITE);
+			textAt(g, rewardNotice, ME_CENTER, DEADLINE_TOP, 22, Ui.RED);
 		else
-			text(g, Ranking.deadlineText(), DEADLINE_X, DEADLINE_TOP, HINT_SIZE, DIM_CREAM);
-
-		fill(g, START, Ui.CREAM);
-		textInBox(g, "시작하기", START, ROW_SIZE, Color.BLACK);
+			textAt(g, Ranking.deadlineText(), ME_CENTER, DEADLINE_TOP, 22, Ui.SUB_TEXT);
 	}
 
-	/** 오른쪽 끝을 기준으로 글자를 놓는다. */
-	private void textRight(Graphics2D g, String s, int designRight, int designTop, float size, Color color) {
-		g.setColor(color);
-		g.setFont(font(size));
-		int x = px(designRight) - g.getFontMetrics().stringWidth(s);
-		g.drawString(s, x, py(designTop) + g.getFontMetrics().getAscent());
+	/** 시작하기 버튼의 흰 삼각형. (x = 왼쪽 끝) */
+	private void whiteTriangle(Graphics2D g, double x, double centerY, double size) {
+		java.awt.geom.Path2D.Double p = new java.awt.geom.Path2D.Double();
+		p.moveTo(px(x), py(centerY - size / 2));
+		p.lineTo(px(x + size * 0.866), py(centerY));
+		p.lineTo(px(x), py(centerY + size / 2));
+		p.closePath();
+		g.setColor(Color.WHITE);
+		g.fill(p);
 	}
 }

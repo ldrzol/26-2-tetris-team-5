@@ -135,6 +135,18 @@ final class GameKeys {
 
 	/** 화면에 적을 키 이름. ; / . 처럼 기호 키는 getKeyText 가 영어 이름을 주므로 글자 그대로 쓴다. */
 	static String keyName(int code) {
+		switch (code) {
+			case KeyEvent.VK_LEFT:
+				return "←";
+			case KeyEvent.VK_RIGHT:
+				return "→";
+			case KeyEvent.VK_UP:
+				return "↑";
+			case KeyEvent.VK_DOWN:
+				return "↓";
+			default:
+				break;
+		}
 		boolean symbol = code >= KeyEvent.VK_COMMA && code <= KeyEvent.VK_CLOSE_BRACKET;
 		return symbol ? String.valueOf((char) code) : KeyEvent.getKeyText(code);
 	}

@@ -4,81 +4,85 @@ import kr.ac.jbnu.se.tetris.game.Sfx;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.util.function.IntConsumer;
 
 /**
- * 메뉴 화면 공통. Figma "Desktop - 5 / 13 / 12" 가 전부 같은 모양이고
- * 제목과 두 항목만 다르다.
+ * 메뉴 화면 공통. Figma "리팩 - 메인 화면 / 모드 선택 / 2인 모드 세부 선택 / 2인 모드 방 생성" 이
+ * 전부 같은 모양이고 제목과 타원 버튼만 다르다.
  *
- * ↑↓ 로 고르고 Enter 로 선택한다.
+ * 버튼을 마우스로 눌러서 고른다.
+ * 숟가락(또는 Esc)은 뒤로 간다.
  */
 class MenuScreen extends DesignPanel {
 
-	private static final Image BACKGROUND = image("images/menu_bg.png");
+	// 메인 화면 (Figma "리팩 - 메인 화면"). 디자인의 두 버튼 위에 상점 버튼을 하나 더 얹었다.
+	private static final Rectangle HOME_LOGO = new Rectangle(468, 109, 1064, 302);
+	private static final int HOME_X = 1406, HOME_W = 394, HOME_H = 184;
+	private static final int[] HOME_TOP = { 700, 915, 1130 };
+	private static final float HOME_SIZE = 80f;
+	private static final int HOME_COIN_RIGHT = 1929;
 
-	// Figma 수치 (디자인 기준 픽셀)
-	private static final Rectangle BOX_OUTER = new Rectangle(745, 657, 510, 320);
-	private static final Rectangle BOX_INNER = new Rectangle(751, 665, 497, 305);
-	private static final int BOX_BORDER = 8;
-
-	private static final int ITEM_X = 932;
-	private static final int ITEM_TOP = 727;
-	private static final int ITEM_GAP = 111;   // 첫째 항목 -> 둘째 항목
-	private static final int ITEM_ROW_H = 90;  // 마우스로 누를 수 있는 한 줄 높이
-	private static final float ITEM_SIZE = 64f;
-
-	private static final Rectangle ARROW = new Rectangle(837, 735, 29, 54);
-
-	private static final int TITLE_LINE_GAP = 161;
-	private static final double TITLE_TRACKING = 0.15;
+	// 나머지 메뉴 (Figma "리팩 - 모드 선택")
+	private static final int TITLE_TOP = 300;
+	private static final int ITEM_X = 758, ITEM_W = 481, ITEM_H = 184, ITEM_STEP = 248;
+	private static final int TOP_3 = 552, TOP_2 = 600;
+	private static final float ITEM_SIZE = 64f, ITEM_SIZE_2 = 72f;   // 버튼이 둘이면 글자가 크다
 
 	/** 디자인에 없는 안내문 자리. 로비의 연결 상태처럼 꼭 필요한 경우에만 쓴다. */
-	private static final int STATUS_TOP = 1030;
-	private static final float STATUS_SIZE = 36f;
+	private static final int STATUS_TOP = 1150, STATUS_H = 97;
+	private static final float STATUS_SIZE = 34f;
 
-	private final String[] titleLines;
-	private final float[] titleSizes;
-	private final int titleTop;
+	private final boolean home;
+	private final String title;
 	private final String[] items;
 	private final IntConsumer onSelect;
+	private final boolean showCoins;
+	private final boolean hasBack;
 
-	private int selected = 0;
+	/** 메인 화면. 시작하기 / 상점 / 설정. */
+	static MenuScreen home(IntConsumer onSelect) {
+		return new MenuScreen(true, null, new String[] { "시작하기", "상점", "설정" }, onSelect, null, true);
+	}
 
-	MenuScreen(String[] titleLines, float[] titleSizes, int titleTop, String[] items, IntConsumer onSelect) {
-		this.titleLines = titleLines;
-		this.titleSizes = titleSizes;
-		this.titleTop = titleTop;
+	/**
+	 * 메뉴 하나. onBack 이 null 이면 숟가락을 그리지 않는다.
+	 */
+	MenuScreen(String title, String[] items, IntConsumer onSelect, Runnable onBack, boolean showCoins) {
+		this(false, title, items, onSelect, onBack, showCoins);
+	}
+
+	private MenuScreen(boolean home, String title, String[] items, IntConsumer onSelect, Runnable onBack,
+			boolean showCoins) {
+		this.home = home;
+		this.title = title;
 		this.items = items;
 		this.onSelect = onSelect;
+		this.showCoins = showCoins;
+		this.hasBack = onBack != null;
 
-		// 마우스로도 고를 수 있다. 항목 줄을 누르면 그대로 선택된다.
 		for (int i = 0; i < items.length; i++) {
 			final int index = i;
-			onClick(new Rectangle(BOX_INNER.x, ITEM_TOP + i * ITEM_GAP - 10, BOX_INNER.width, ITEM_ROW_H),
-					() -> {
-						selected = index;
-						choose();
-					});
+			onClick(button(i), () -> choose(index));
 		}
-
-		Ui.bind(this, KeyEvent.VK_UP, "menuUp", () -> move(-1));
-		Ui.bind(this, KeyEvent.VK_DOWN, "menuDown", () -> move(+1));
-		Ui.bind(this, KeyEvent.VK_ENTER, "menuEnter", this::choose);
+		if (onBack != null) {
+			onBack(onBack);
+			Ui.bind(this, KeyEvent.VK_ESCAPE, "menuBack", onBack);
+		}
 	}
 
-	private void move(int d) {
-		selected = (selected + d + items.length) % items.length;
-		Sfx.play(Sfx.Sound.MOVE);
-		repaint();
+	private Rectangle button(int i) {
+		if (home)
+			return new Rectangle(HOME_X, HOME_TOP[HOME_TOP.length - items.length + i], HOME_W, HOME_H);
+		int top = (items.length >= 3 ? TOP_3 : TOP_2) + i * ITEM_STEP;
+		return new Rectangle(ITEM_X, top, ITEM_W, ITEM_H);
 	}
 
-	private void choose() {
-		if (isSelectable(selected)) {
+	private void choose(int index) {
+		if (isSelectable(index)) {
 			Sfx.play(Sfx.Sound.ROTATE);
-			select(selected);
+			select(index);
 		}
 	}
 
@@ -93,41 +97,35 @@ class MenuScreen extends DesignPanel {
 		return true;
 	}
 
-	/** 상자 아래에 띄울 안내문. 없으면 null. */
+	/** 버튼 아래에 띄울 안내문. 없으면 null. */
 	String status() {
 		return null;
 	}
 
-	/** Figma 상자는 항목 두 개 기준이다. 항목이 늘면 그만큼 아래로 늘린다. */
-	private Rectangle grown(Rectangle box) {
-		return new Rectangle(box.x, box.y, box.width, box.height + (items.length - 2) * ITEM_GAP);
-	}
-
 	@Override
 	void paintDesign(Graphics2D g) {
-		background(g, BACKGROUND);
+		background(g, home ? CAFE : SKY);
 
-		int top = titleTop;
-		for (int i = 0; i < titleLines.length; i++) {
-			gradientTextCentered(g, titleLines[i], top, titleSizes[i], TITLE_TRACKING);
-			top += TITLE_LINE_GAP;
-		}
+		if (home)
+			drawImage(g, TITLE_LOGO, HOME_LOGO);
+		else
+			menuTitle(g, title, TITLE_TOP);
 
-		// 바깥 흐린 테두리 + 안쪽 크림 테두리 (두 겹)
-		outline(g, grown(BOX_OUTER), DIM_CREAM, BOX_BORDER);
-		outline(g, grown(BOX_INNER), Ui.CREAM, BOX_BORDER);
+		float size = home ? HOME_SIZE : items.length >= 3 ? ITEM_SIZE : ITEM_SIZE_2;
+		for (int i = 0; i < items.length; i++)
+			oval(g, button(i), items[i], size);
 
-		for (int i = 0; i < items.length; i++) {
-			Color color = isSelectable(i) ? Color.WHITE : DIM_CREAM;
-			text(g, items[i], ITEM_X, ITEM_TOP + i * ITEM_GAP, ITEM_SIZE, color);
-		}
-		drawImage(g, ARROW_ICON,
-				new Rectangle(ARROW.x, ARROW.y + selected * ITEM_GAP, ARROW.width, ARROW.height));
+		if (showCoins)
+			coins(g, home ? HOME_COIN_RIGHT : COIN_RIGHT + 115, COIN_TOP);
+		if (hasBack)
+			back(g);
 
 		String status = status();
-		if (status != null)
-			textCentered(g, status, STATUS_TOP, STATUS_SIZE, Ui.CREAM, 0);
-
-		gear(g);
+		if (status != null) {
+			int w = textWidth(g, status, STATUS_SIZE) + 80;
+			Rectangle r = new Rectangle(DESIGN_W / 2 - w / 2, STATUS_TOP, w, STATUS_H);
+			box(g, r, 26, Ui.DARK_CARD, Ui.DARK_CARD_BORDER, 8, 7, Ui.SHADOW);
+			textInBox(g, status, r, STATUS_SIZE, Color.WHITE);
+		}
 	}
 }

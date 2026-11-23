@@ -3,11 +3,8 @@ package kr.ac.jbnu.se.tetris.ui;
 import kr.ac.jbnu.se.tetris.network.LobbyService;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
 import kr.ac.jbnu.se.tetris.save.Wallet;
-import kr.ac.jbnu.se.tetris.shared.SharedClientFrame;
-import kr.ac.jbnu.se.tetris.shared.SharedHostFrame;
 import kr.ac.jbnu.se.tetris.network.GameMode;
 
-import javax.swing.JFrame;
 
 /**
  * 2인 대전 로비. Figma "Desktop - 12".
@@ -27,8 +24,8 @@ class LobbyFrame extends MenuScreen implements LobbyService.Listener {
 	private boolean busy = false;
 
 	LobbyFrame(MainFrame frame) {
-		super(new String[] { "멀티 모드", "- 2인 -" }, new float[] { 128f, 96f }, 252,
-				new String[] { "방 만들기", "방 참가" }, null);
+		super("네트워크 대전", new String[] { "방 생성하기", "방 참가하기" }, null,
+				() -> frame.showScreen(MainFrame.MULTI), true);
 		this.frame = frame;
 	}
 
@@ -133,25 +130,8 @@ class LobbyFrame extends MenuScreen implements LobbyService.Listener {
 	@Override
 	public void onStart(PeerConnection connection, boolean host, GameMode gameMode, int fee) {
 		if (gameMode == GameMode.SHARED)
-			openSharedWindow(connection, host, fee);
+			frame.showShared(connection, host, fee);
 		else
 			frame.showVersus(connection, fee);
-	}
-
-	/**
-	 * 땅따먹기는 판 모양이 달라서 아직 디자인 화면에 들어가 있지 않다. 따로 창을 띄우고,
-	 * 그동안 메인 창은 숨겨 뒀다가 끝나면 다시 보여 준다.
-	 */
-	private void openSharedWindow(PeerConnection connection, boolean host, int fee) {
-		Runnable onExit = () -> {
-			frame.setVisible(true);
-			frame.showScreen(MainFrame.MENU);
-		};
-		JFrame game = host
-				? new SharedHostFrame(connection, fee, onExit)
-				: new SharedClientFrame(connection, fee, onExit);
-		game.setLocationRelativeTo(null);
-		game.setVisible(true);
-		frame.setVisible(false);
 	}
 }

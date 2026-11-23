@@ -25,7 +25,7 @@ import kr.ac.jbnu.se.tetris.network.ItemMessage;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
 
 /**
- * 대전 화면. Figma "Desktop - 9".
+ * 대전 화면. Figma "리팩 - 2인 모드(두 화면)".
  *
  * 왼쪽이 플레이어, 오른쪽이 상대다. 상대는 셋 중 하나다.
  *   - AI 가 조종하는 보드 (AI 대전)
@@ -48,68 +48,45 @@ class VersusPanel extends DesignPanel {
 	/** 상대에게 내 화면을 보내는 간격(ms). */
 	private static final int SNAPSHOT_MS = 100;
 
-	// Figma "Desktop - 9" 수치 (디자인 기준 픽셀)
-	private static final Rectangle BOARD_1 = new Rectangle(268, 239, 550, 1100);
-	private static final Rectangle BOARD_2 = new Rectangle(1183, 239, 550, 1100);
-	private static final int CELL = 55;   // 550/10 = 1100/20 = 55, 자리에 딱 맞는다
+	// Figma "리팩 - 2인 모드(두 화면)" 수치 (디자인 기준 픽셀)
+	private static final Rectangle BOARD_1 = new Rectangle(327, 233, 550, 1100);
+	private static final Rectangle BOARD_2 = new Rectangle(1123, 233, 550, 1100);
 
-	private static final Rectangle SCORE_TAB_1 = new Rectangle(382, 39, 190, 62);
-	private static final Rectangle SCORE_BOX_1 = new Rectangle(382, 101, 322, 100);
-	private static final Rectangle SCORE_TAB_2 = new Rectangle(1297, 39, 190, 62);
-	private static final Rectangle SCORE_BOX_2 = new Rectangle(1297, 101, 322, 100);
+	/** 칠판 점수판: 왼쪽에 점수, 오른쪽 끝에 지운 줄 수 */
+	private static final Rectangle[] SCORE_BOX = {
+			new Rectangle(410, 38, 384, 121), new Rectangle(1206, 38, 384, 121) };
+	private static final Rectangle TIME_BOX = new Rectangle(884, 25, 235, 147);
 
-	private static final Rectangle NEXT_TAB_1 = new Rectangle(18, 462, 186, 62);
-	private static final Rectangle NEXT_BOX_1 = new Rectangle(18, 524, 232, 165);
-	private static final Rectangle HOLD_TAB_1 = new Rectangle(18, 734, 186, 62);
-	private static final Rectangle HOLD_BOX_1 = new Rectangle(18, 796, 232, 165);
-	private static final Rectangle NEXT_TAB_2 = new Rectangle(1751, 462, 186, 62);
-	private static final Rectangle NEXT_BOX_2 = new Rectangle(1751, 524, 232, 165);
-	private static final Rectangle HOLD_TAB_2 = new Rectangle(1751, 734, 186, 62);
-	private static final Rectangle HOLD_BOX_2 = new Rectangle(1751, 796, 232, 165);
+	private static final Rectangle[] NAME_OVAL = {
+			new Rectangle(30, 172, 260, 122), new Rectangle(1712, 194, 260, 122) };
+	private static final Rectangle[] NEXT_BOX = {
+			new Rectangle(41, 358, 235, 249), new Rectangle(1728, 358, 235, 249) };
+	private static final Rectangle[] HOLD_BOX = {
+			new Rectangle(41, 678, 235, 249), new Rectangle(1725, 678, 235, 249) };
+	private static final Rectangle[] ITEM_BOX = {
+			new Rectangle(42, 998, 235, 335), new Rectangle(1728, 998, 235, 335) };
 
-	// 양쪽 아래: Hold 상자 밑에 Level 과 켜진 기믹 목록
-	private static final Rectangle LEVEL_TAB_1 = new Rectangle(18, 1005, 186, 62);
-	private static final Rectangle LEVEL_BOX_1 = new Rectangle(18, 1067, 232, 90);
-	private static final Rectangle LEVEL_TAB_2 = new Rectangle(1751, 1005, 186, 62);
-	private static final Rectangle LEVEL_BOX_2 = new Rectangle(1751, 1067, 232, 90);
+	private static final int VS_TOP = 382;
+	private static final float VS_SIZE = 64f, NAME_SIZE = 64f;
 
-	/** Level 상자 아래에 켜진 기믹 아이콘을 한 줄로 둔다. (동시에 최대 3개) */
-	private static final int GIMMICK_DROP = 16, GIMMICK_ICON = 64, GIMMICK_GAP = 10;
+	/** 가운데 아이템 키 안내 상자. 한 화면 2인이면 2P 키까지 적느라 길어진다. */
+	private static final int KEYS_X = 937, KEYS_TOP = 532, KEYS_W = 129;
+	private static final int KEY_ENTRY = 120;
 
-	/** 기믹 아이콘 줄 아래에 콤보 표시. (두 번째 연속 삭제부터) */
-	private static final int COMBO_DROP = 102;
-	private static final float COMBO_SIZE = 40f;
+	// ITEM 상자 안: 손패 세 칸과 그 아래 한 줄
+	private static final int ITEM_SLOT = 62, ITEM_SLOT_GAP = 8, ITEM_SLOT_DROP = 112;
+	private static final int ITEM_ICON = 52, ITEM_LABEL_DROP = 190;
+	private static final float ITEM_SIZE = 26f;
 
-	private static final Rectangle TIME_TAB = new Rectangle(906, 711, 190, 62);
-	private static final Rectangle TIME_BOX = new Rectangle(864, 773, 273, 100);
-
-	// 두 보드 사이 빈 자리에 아이템 칸을 둔다. 위가 1P, 아래가 2P 것이다.
-	private static final Rectangle[] ITEM_TABS = {
-			new Rectangle(864, 900, 190, 62), new Rectangle(864, 1150, 190, 62) };
-	private static final Rectangle[] ITEM_BOXES = {
-			new Rectangle(864, 962, 273, 170), new Rectangle(864, 1212, 273, 170) };
-
-	private static final int ITEM_SLOT = 74, ITEM_SLOT_GAP = 10, ITEM_SLOT_TOP = 14;
-	private static final int ITEM_SLOT_BORDER = 4, ITEM_ICON = 64;
-	private static final int ITEM_LABEL_DROP = 94, ITEM_HINT_DROP = 128;
-	private static final float ITEM_SIZE = 28f, ITEM_HINT_SIZE = 22f;
+	/** 보드 안 오른쪽 위에 켜진 기믹 아이콘, 위 가운데에 콤보를 띄운다. (디자인에 자리가 없어서) */
+	private static final int GIMMICK_ICON = 56, GIMMICK_GAP = 8, OVER_PAD = 26;
+	private static final float COMBO_SIZE = 44f;
 
 	/** 아이템을 쓰거나 받았을 때 그 사람 아이템 칸에 글자를 띄우고 칸을 반짝이는 시간(ms). */
 	private static final int NOTICE_MS = 1500;
 
-	// 왼쪽 위 뒤로 버튼 (환경 설정 화면의 뒤로와 같은 모양)
-	private static final Rectangle BACK = new Rectangle(18, 66, 232, 81);
-	private static final Rectangle BACK_ARROW = new Rectangle(77, 88, 20, 37);
-	private static final int BACK_TEXT_X = 124;
-	private static final int BACK_TEXT_TOP = 79;
 	private static final String LEAVE = "나가기";
 	private static final String STAY = "계속하기";
-
-	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
-	private static final int VS_TOP = 561, VS_HEIGHT = 80;
-	private static final int LABEL_TOP = 304, LABEL_HEIGHT = 80;
-	private static final int LABEL_1_X = 84, LABEL_2_X = 1803;
-	private static final float BIG_SIZE = 64f;
 
 	private final MainFrame frame;
 	private final String kind;
@@ -140,8 +117,12 @@ class VersusPanel extends DesignPanel {
 	/** 아이템을 쓰는 판인지. AI 대전에서는 쓰지 않는다. */
 	private final boolean useItems;
 
-	/** 상대 점수. 네트워크 대전에서는 받아 온 값을 쓴다. */
+	/** 이번 판에 쓴 아이템 수. [0] = 왼쪽, [1] = 오른쪽. (네트워크 상대는 나에게 건 수만 센다) */
+	private final int[] itemsUsed = new int[2];
+
+	/** 상대 점수·줄 수. 네트워크 대전에서는 받아 온 값을 쓴다. */
 	private int rivalScore = 0;
+	private int rivalLines = 0;
 	private int rivalCombo = -1;
 	private boolean rivalOver = false;
 	private boolean finished = false;
@@ -182,7 +163,7 @@ class VersusPanel extends DesignPanel {
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
 		Ui.bind(this, KeyEvent.VK_P, "pause2", this::pause);
 		onGear(this::pause);
-		onClick(BACK, this::askLeave);
+		onBack(this::askLeave);
 
 		playerBoard.onFever(() -> fever(0));
 		if (local)
@@ -241,12 +222,15 @@ class VersusPanel extends DesignPanel {
 			hands[1] = state.hand;          // 상대 가방을 오른쪽에 그대로 보여 준다
 		rivalCombo = state.combo;
 		rivalScore = state.score;
+		rivalLines = state.linesRemoved;
 		rivalOver = state.gameOver;
 		rivalBoard.repaint();
 		repaint();
 	}
 
 	private void receiveItem(ItemMessage item) {
+		if (!item.reply)
+			itemsUsed[1]++;
 		notice(0, "상대 " + item.attack.label + "!", -1);
 		if (item.attack == Attack.SWAP)
 			receiveSwap(item);
@@ -279,7 +263,7 @@ class VersusPanel extends DesignPanel {
 		for (int i = 0; i < HAND_SIZE; i++) {
 			final int slot = i;
 			Ui.bind(this, GameKeys.ITEM_SELECT[hand(player)][i], "pick" + player + slot, () -> select(player, slot));
-			onClick(itemSlot(ITEM_BOXES[player], slot), () -> select(player, slot));
+			onClick(itemSlot(player, slot), () -> select(player, slot));
 		}
 		Ui.bind(this, GameKeys.ITEM_USE[hand(player)], "use" + player, () -> useItem(player, picked[player]));
 	}
@@ -404,6 +388,7 @@ class VersusPanel extends DesignPanel {
 			return;
 		}
 		Sfx.play(Sfx.Sound.ITEM);
+		itemsUsed[player]++;
 		notice(player, attack.label + " 사용!", slot);
 
 		if (attack.self)
@@ -516,7 +501,7 @@ class VersusPanel extends DesignPanel {
 	private Board newBoard() {
 		Board b = new Board(new JLabel());   // Board 가 상태바를 요구한다. 화면엔 안 붙인다.
 		b.getGame().setLevelProgression(false);
-		b.setBackground(Ui.BG);
+		b.setOpaque(false);                  // 보드 상자의 하늘색이 비쳐야 한다
 		b.onRepaint(this::repaint);          // Hold/Next 는 패널이 그리므로 같이 갱신해야 한다
 		return b;
 	}
@@ -563,21 +548,23 @@ class VersusPanel extends DesignPanel {
 
 		String title = resultTitle();
 		int coins = connection != null ? settle(title) : 0;
-		frame.showVersusResult(sideTitles(title), new int[] { playerBoard.score(), rivalScore() }, coins, kind);
+		String[] names = local ? new String[] { "1P", "2P" }
+				: new String[] { "나", connection != null ? "상대" : "AI" };
+		frame.showVersusResult(names, sideResults(title),
+				new int[] { playerBoard.score(), rivalScore() },
+				new int[] { playerBoard.getGame().getLinesRemoved(), rivalLines() },
+				itemsUsed.clone(), coins, kind);
 	}
 
-	/** 결과를 보드마다 적는다. 예) 한 화면 2인에서 2P 가 이기면 "1P LOSE" / "2P WIN". */
-	private String[] sideTitles(String title) {
-		String[] names = { "나", connection != null ? "상대" : "AI" };
-		if (local)
-			names = new String[] { "1P", "2P" };
+	/** 결과를 보드마다 적는다. 예) 왼쪽이 지면 "LOSE" / "WIN". */
+	private static String[] sideResults(String title) {
 		String left = title.startsWith("YOU ") ? title.substring(4) : title;   // WIN / LOSE / DRAW
-		String right = left;
-		if (left.equals("WIN"))
-			right = "LOSE";
-		else if (left.equals("LOSE"))
-			right = "WIN";
-		return new String[] { names[0] + " " + left, names[1] + " " + right };
+		String right = left.equals("WIN") ? "LOSE" : left.equals("LOSE") ? "WIN" : left;
+		return new String[] { left, right };
+	}
+
+	private int rivalLines() {
+		return connection != null ? rivalLines : rivalBoard.getGame().getLinesRemoved();
 	}
 
 	/** 참가비를 정산하고 받은 코인을 돌려준다. */
@@ -608,116 +595,122 @@ class VersusPanel extends DesignPanel {
 
 	@Override
 	void layoutDesign() {
-		playerBoard.setBounds(boardBounds(BOARD_1, CELL));
-		rivalBoard.setBounds(boardBounds(BOARD_2, CELL));
+		playerBoard.setBounds(boardBounds(BOARD_1));
+		rivalBoard.setBounds(boardBounds(BOARD_2));
 	}
 
 	@Override
 	void paintDesign(Graphics2D g) {
-		boardFrame(g, boardBounds(BOARD_1, CELL));
-		boardFrame(g, boardBounds(BOARD_2, CELL));
+		background(g, SKY);
+		boardFrame(g, playerBoard.getBounds(), Ui.BROWN);
+		boardFrame(g, rivalBoard.getBounds(), Ui.BROWN);
 
-		outline(g, SCORE_BOX_1);
-		outline(g, SCORE_BOX_2);
-		outline(g, NEXT_BOX_1);
-		outline(g, HOLD_BOX_1);
-		outline(g, NEXT_BOX_2);
-		outline(g, HOLD_BOX_2);
-		outline(g, TIME_BOX);
-		outline(g, LEVEL_BOX_1);
-		outline(g, LEVEL_BOX_2);
+		int[] scores = { playerBoard.score(), rivalScore() };
+		int[] lines = { playerBoard.getGame().getLinesRemoved(), rivalLines() };
+		for (int p = 0; p < 2; p++) {
+			Rectangle sb = SCORE_BOX[p];
+			box(g, sb, 15, Ui.CHALK, Ui.BROWN, 10, 19, Ui.SHADOW);
+			text(g, String.format("%,d", scores[p]), sb.x + 22, sb.y + 32, 48, Color.WHITE);
+			textRight(g, String.valueOf(lines[p]), sb.x + sb.width - 22, sb.y + 51, 32, Color.WHITE);
 
-		tab(g, SCORE_TAB_1, "Score", TAB_SIZE);
-		tab(g, SCORE_TAB_2, "Score", TAB_SIZE);
-		tab(g, NEXT_TAB_1, "Next", TAB_SIZE);
-		tab(g, HOLD_TAB_1, "Hold", TAB_SIZE);
-		tab(g, NEXT_TAB_2, "Next", TAB_SIZE);
-		tab(g, HOLD_TAB_2, "Hold", TAB_SIZE);
-		tab(g, TIME_TAB, "Time", TAB_SIZE);
-		tab(g, LEVEL_TAB_1, "Level", TAB_SIZE);
-		tab(g, LEVEL_TAB_2, "Level", TAB_SIZE);
+			smallOval(g, NAME_OVAL[p], (p + 1) + "P", NAME_SIZE, false);
+			awningPanel(g, NEXT_BOX[p], "NEXT");
+			awningPanel(g, HOLD_BOX[p], "HOLD");
+			if (useItems)                  // AI 대전은 아이템을 쓰지 않는다
+				awningPanel(g, ITEM_BOX[p], "ITEM");
+		}
 
-		previews(g, playerBoard, NEXT_BOX_1, HOLD_BOX_1);
+		previews(g, playerBoard, 0);
 		if (connection == null)
-			previews(g, rivalBoard, NEXT_BOX_2, HOLD_BOX_2);   // 비추기만 할 때는 알 수 없다
+			previews(g, rivalBoard, 1);   // 비추기만 할 때는 알 수 없다
 
-		// 점수·레벨은 그릴 때마다 보드에서 바로 읽는다. (1초 시계를 기다리지 않는다)
-		valueRight(g, SCORE_BOX_1, String.format("%06d", playerBoard.score()), VALUE_SIZE, VALUE_PAD);
-		valueRight(g, SCORE_BOX_2, String.format("%06d", rivalScore()), VALUE_SIZE, VALUE_PAD);
-		valueCentered(g, TIME_BOX, timeText, VALUE_SIZE);
-		sideInfo(g, playerBoard, LEVEL_BOX_1);
-		sideInfo(g, rivalBoard, LEVEL_BOX_2);
+		panel(g, TIME_BOX);
+		textInBox(g, timeText, new Rectangle(TIME_BOX.x, TIME_BOX.y + 10, TIME_BOX.width, TIME_BOX.height - 20),
+				48, Color.BLACK);
+		textCentered(g, "VS", VS_TOP, VS_SIZE, Color.BLACK);
 
-		if (useItems)
+		if (useItems) {
 			items(g);
+			keyGuide(g);
+		}
 
-		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
-		textCenteredIn(g, "VS", VS_TOP, VS_HEIGHT, BIG_SIZE, Color.WHITE);
+		boardStatus(g, playerBoard, BOARD_1);
+		boardStatus(g, rivalBoard, BOARD_2);
 
-		outline(g, BACK);
-		drawImageFlipped(g, ARROW_ICON, BACK_ARROW);
-		text(g, "뒤로", BACK_TEXT_X, BACK_TEXT_TOP, TAB_SIZE, Ui.CREAM);
-
-		g.setColor(Color.WHITE);
-		g.setFont(font(BIG_SIZE));
-		// 디자인에는 "!st" / "2st" 로 적혀 있으나 오타라 1st / 2nd 로 쓴다
-		g.drawString("1st", px(LABEL_1_X), centeredBaseline(g, LABEL_TOP, LABEL_HEIGHT));
-		g.drawString("2nd", px(LABEL_2_X), centeredBaseline(g, LABEL_TOP, LABEL_HEIGHT));
-
+		back(g);
 		gear(g);
 	}
 
-	/** 플레이어마다 손에 든 아이템. 고른 자리에 흰 테두리를 둘러 준다. */
+	private void previews(Graphics2D g, Board board, int p) {
+		GameBoard game = board.getGame();
+		preview(g, below(NEXT_BOX[p], 16), game.nextType(), game.getNextColor());
+		preview(g, below(HOLD_BOX[p], 16), game.holdType(), game.getHoldColor());
+	}
+
+	/** 가운데 상자: 아이템 고르기 / 사용 키. 디자인의 "Q 사용 / T 바꾸기" 자리다. */
+	private void keyGuide(Graphics2D g) {
+		int players = local ? 2 : 1;
+		Rectangle r = new Rectangle(KEYS_X, KEYS_TOP, KEYS_W, 30 + players * 2 * KEY_ENTRY);
+		panel(g, r);
+		int top = r.y + 19;
+		for (int p = 0; p < players; p++) {
+			int[] select = GameKeys.ITEM_SELECT[hand(p)];
+			String pick = GameKeys.keyName(select[0]) + GameKeys.keyName(select[1]) + GameKeys.keyName(select[2]);
+			String who = local ? (p + 1) + "P " : "";
+			keyEntry(g, top, pick, who + "고르기");
+			keyEntry(g, top + KEY_ENTRY, GameKeys.keyName(GameKeys.ITEM_USE[hand(p)]), who + "사용");
+			top += KEY_ENTRY * 2;
+		}
+	}
+
+	private void keyEntry(Graphics2D g, int top, String key, String label) {
+		Rectangle cap = new Rectangle(KEYS_X + 16, top, 98, 54);
+		box(g, cap, 11, new Color(0xF8D257), null, 0, 4, Ui.SHADOW);
+		textInBox(g, key, cap, 30, Color.BLACK);
+		textAt(g, label, KEYS_X + KEYS_W / 2.0, top + 62, 26, Color.BLACK);
+	}
+
+	/** 플레이어마다 손에 든 아이템. 고른 자리에 빨간 테두리를 둘러 준다. */
 	private void items(Graphics2D g) {
-		for (int player = 0; player < 2; player++)
-			itemBox(g, player);
+		for (int player = 0; player < 2; player++) {
+			for (int i = 0; i < HAND_SIZE; i++)
+				drawItemSlot(g, player, i, itemSlot(player, i));
+			Rectangle box = ITEM_BOX[player];
+			itemLabel(g, player, box.x + box.width / 2.0, box.y + ITEM_LABEL_DROP);
+		}
 	}
 
-	private void itemBox(Graphics2D g, int player) {
-		Rectangle box = ITEM_BOXES[player];
-		tab(g, ITEM_TABS[player], (player + 1) + "P Item", TAB_SIZE);
-		outline(g, box);
-
-		for (int i = 0; i < HAND_SIZE; i++)
-			drawItemSlot(g, player, i, itemSlot(box, i));
-
-		// 상자 가로 가운데가 디자인 화면 가운데(1000)와 같아서 textCentered 로 맞는다.
-		itemLabel(g, player, box.y + ITEM_LABEL_DROP);
-		textCentered(g, ours(player) ? GameKeys.itemHint(hand(player)) : "상대 가방",
-				box.y + ITEM_HINT_DROP, ITEM_HINT_SIZE, DIM_CREAM, 0);
-	}
-
-	/** 손패 한 칸. 방금 쓰거나 받은 칸은 반짝이고, 고른 칸은 흰 테두리다. */
+	/** 손패 한 칸. 방금 쓰거나 받은 칸은 노랗게 반짝이고, 고른 칸은 빨간 테두리다. */
 	private void drawItemSlot(Graphics2D g, int player, int index, Rectangle slot) {
-		if (noticeOn(player) && index == noticeSlot[player])
-			fill(g, slot, DIM_CREAM);
+		boolean flash = noticeOn(player) && index == noticeSlot[player];
 		boolean chosen = ours(player) && index == picked[player];
-		outline(g, slot, chosen ? Color.WHITE : DIM_CREAM, ITEM_SLOT_BORDER);
+		box(g, slot, 12, flash ? Ui.YELLOW : Color.WHITE, chosen ? Ui.RED : Ui.DASH, chosen ? 5 : 3, 0, null);
 		Attack attack = hands[player][index];
 		if (attack != null)
 			drawImage(g, image(attack.icon), centered(slot, ITEM_ICON));
 	}
 
 	/** 칸 아래 한 줄: 알림이 떠 있으면 알림, 아니면 고른 아이템 이름. (상대 가방은 이름을 숨긴다) */
-	private void itemLabel(Graphics2D g, int player, int top) {
+	private void itemLabel(Graphics2D g, int player, double centerX, int top) {
 		if (noticeOn(player)) {
-			textCentered(g, notice[player], top, ITEM_SIZE, Ui.CREAM, 0);
+			textAt(g, notice[player], centerX, top, ITEM_SIZE, Ui.RED);
 			return;
 		}
-		if (!ours(player))
+		if (!ours(player)) {
+			textAt(g, "상대 가방", centerX, top, ITEM_SIZE, Ui.SUB_TEXT);
 			return;
+		}
 		Attack chosen = hands[player][picked[player]];
-		if (chosen == null)
-			textCentered(g, "-", top, ITEM_SIZE, DIM_CREAM, 0);
-		else
-			textCentered(g, chosen.label, top, ITEM_SIZE, Ui.CREAM, 0);
+		textAt(g, chosen == null ? "-" : chosen.label, centerX, top, ITEM_SIZE,
+				chosen == null ? Ui.SUB_TEXT : Ui.TEXT);
 	}
 
-	/** 아이템 칸 세 개를 상자 가운데에 한 줄로 늘어놓는다. */
-	private static Rectangle itemSlot(Rectangle box, int index) {
+	/** 아이템 칸 세 개를 ITEM 상자 가운데에 한 줄로 늘어놓는다. */
+	private static Rectangle itemSlot(int player, int index) {
+		Rectangle box = ITEM_BOX[player];
 		int total = HAND_SIZE * ITEM_SLOT + (HAND_SIZE - 1) * ITEM_SLOT_GAP;
 		int x = box.x + (box.width - total) / 2 + index * (ITEM_SLOT + ITEM_SLOT_GAP);
-		return new Rectangle(x, box.y + ITEM_SLOT_TOP, ITEM_SLOT, ITEM_SLOT);
+		return new Rectangle(x, box.y + ITEM_SLOT_DROP, ITEM_SLOT, ITEM_SLOT);
 	}
 
 	private static Rectangle centered(Rectangle slot, int size) {
@@ -725,16 +718,15 @@ class VersusPanel extends DesignPanel {
 				size, size);
 	}
 
-	/** 한쪽 보드의 레벨과, 그 아래에 켜진 기믹 아이콘과 콤보. */
-	private void sideInfo(Graphics2D g, Board board, Rectangle levelBox) {
-		valueRight(g, levelBox, String.valueOf(board.getGame().getLevel()), VALUE_SIZE, VALUE_PAD);
-		gimmickIcons(g, board.getGame().getGimmick(),
-				levelBox.x, levelBox.y + levelBox.height + GIMMICK_DROP, GIMMICK_ICON, GIMMICK_GAP);
+	/** 보드 위에 겹쳐 그리는 상태: 오른쪽 위 기믹 아이콘, 위 가운데 콤보. */
+	private void boardStatus(Graphics2D g, Board board, Rectangle box) {
+		int n = board.getGame().getGimmick().activeIcons().size();
+		int x = box.x + box.width - OVER_PAD - n * GIMMICK_ICON - Math.max(0, n - 1) * GIMMICK_GAP;
+		gimmickIcons(g, board.getGame().getGimmick(), x, box.y + OVER_PAD, GIMMICK_ICON, GIMMICK_GAP);
 
 		int combo = combo(board);
 		if (combo > 0)                      // 두 번째 연속 삭제부터 보여 준다
-			text(g, combo + " COMBO", levelBox.x, levelBox.y + levelBox.height + COMBO_DROP,
-					COMBO_SIZE, Ui.CREAM);
+			textAt(g, combo + " COMBO", box.x + box.width / 2.0, box.y + OVER_PAD, COMBO_SIZE, Ui.RED);
 	}
 
 	/** 상대 보드는 비추기만 하므로 콤보도 받아 온 값을 쓴다. */
@@ -742,12 +734,6 @@ class VersusPanel extends DesignPanel {
 		if (board == rivalBoard && connection != null)
 			return rivalCombo;
 		return board.getGame().getCombo();
-	}
-
-	private void previews(Graphics2D g, Board board, Rectangle nextBox, Rectangle holdBox) {
-		GameBoard game = board.getGame();
-		preview(g, nextBox, game.nextType(), game.getNextColor());
-		preview(g, holdBox, game.holdType(), game.getHoldColor());
 	}
 
 	/**

@@ -6,13 +6,13 @@ import kr.ac.jbnu.se.tetris.network.InputMessage;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
 import kr.ac.jbnu.se.tetris.network.SharedStateMessage;
 
-public class SharedClientFrame extends SharedFrame {
+/** 땅따먹기 참가자. 판은 방장이 돌리고, 여기서는 받은 상태를 보여 주고 키만 보낸다. */
+class SharedClient extends SharedSession {
 
-    public SharedClientFrame(PeerConnection connection, int fee, Runnable onExit) {
-        super(connection, fee, onExit, "땅따먹기 - 상대 (내 블록: 검은 테두리)");
-        scoreLabel.setText("방장이 시작하기를 기다리는 중...");
-        pack();
-        connection.send(READY);   // [버그 14] 내 창이 준비됐다고 방장에게 알린다
+    SharedClient(PeerConnection connection, int fee, View view) {
+        super(connection, fee, view);
+        view.showStatus("방장이 시작하기를 기다리는 중...");
+        connection.send(READY);   // [버그 14] 내 화면이 준비됐다고 방장에게 알린다
     }
 
     @Override
@@ -20,7 +20,7 @@ public class SharedClientFrame extends SharedFrame {
         if (message instanceof String && ((String) message).startsWith(COUNT)) {
             // [버그 14] 방장이 보낸 카운트다운을 그대로 띄운다
             String text = ((String) message).substring(COUNT.length()) + "초 뒤에 시작합니다";
-            SwingUtilities.invokeLater(() -> scoreLabel.setText(text));
+            SwingUtilities.invokeLater(() -> view.showStatus(text));
             return;
         }
         if (!(message instanceof SharedStateMessage)) {
@@ -28,17 +28,13 @@ public class SharedClientFrame extends SharedFrame {
         }
         SharedStateMessage state = (SharedStateMessage) message;
         SwingUtilities.invokeLater(() -> {
-            view.setState(state);
-            scoreLabel.setText("나(P2): " + state.getScore(1) + "    상대(P1): " + state.getScore(0));
-            if (state.isGameOver() && !settled) {
-                settled = true;
-                ResultPanel.showShared(this, connection, state.getWinner(), 1, fee, onExit);
-            }
+            view.showState(state);
+            finish(state, 1);
         });
     }
 
     @Override
-    protected void onKey(InputMessage.Action action) {
+    public void onKey(InputMessage.Action action) {
         connection.send(new InputMessage(action));
     }
 }

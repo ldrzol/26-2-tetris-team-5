@@ -8,15 +8,15 @@ import kr.ac.jbnu.se.tetris.network.PeerConnection;
 import kr.ac.jbnu.se.tetris.network.SharedStateMessage;
 
 /**
- * 땅따먹기 방장 창. 게임 규칙(SharedGame)은 방장만 돌리고, 판 상태를 참가자에게 보낸다.
+ * 땅따먹기 방장. 게임 규칙(SharedGame)은 방장만 돌리고, 판 상태를 참가자에게 보낸다.
  *
  * 시작 순서 [버그 14]:
- * 1) 창이 열려도 바로 시작하지 않고 "상대가 준비하기를 기다리는 중..."을 띄운다.
- * 2) 참가자 창이 열리면 참가자가 READY 를 보낸다.
+ * 1) 화면이 열려도 바로 시작하지 않고 "상대가 준비하기를 기다리는 중..."을 띄운다.
+ * 2) 참가자 화면이 열리면 참가자가 READY 를 보낸다.
  * 3) READY 를 받으면 3, 2, 1 카운트다운을 양쪽 화면에 띄운다.
  * 4) 카운트다운이 끝나면 블록이 떨어지기 시작하고 5분 시계가 시작된다.
  */
-public class SharedHostFrame extends SharedFrame {
+class SharedHost extends SharedSession {
 
     /** 한 판 제한 시간. */
     private static final long TIME_LIMIT_MS = 5 * 60 * 1000L;
@@ -34,7 +34,7 @@ public class SharedHostFrame extends SharedFrame {
 
     /**
      * [버그 14] 제한 시간이 끝나는 시각. 카운트다운이 끝나 실제로 시작할 때 정한다.
-     * (예전에는 창이 열리는 순간 정해서, 참가자가 늦게 들어오면 그만큼 시간이 줄어 있었다)
+     * (예전에는 화면이 열리는 순간 정해서, 참가자가 늦게 들어오면 그만큼 시간이 줄어 있었다)
      */
     private long endTime;
 
@@ -53,11 +53,10 @@ public class SharedHostFrame extends SharedFrame {
     /** [버그 10] 이번 칸 동안 받은 참가자 입력 수. 블록이 한 칸 내려올 때마다 0으로 돌아간다. */
     private int inputsThisTick = 0;
 
-    public SharedHostFrame(PeerConnection connection, int fee, Runnable onExit) {
-        super(connection, fee, onExit, "땅따먹기 - 방장 (내 블록: 흰 테두리)");
-        view.setState(game);
-        scoreLabel.setText("상대가 준비하기를 기다리는 중...");
-        pack();
+    SharedHost(PeerConnection connection, int fee, View view) {
+        super(connection, fee, view);
+        view.showState(game);
+        view.showStatus("상대가 준비하기를 기다리는 중...");
         // [버그 14] 예전에는 여기서 바로 fallTimer.start() 로 시작했다.
         // 이제는 참가자가 READY 를 보내면 카운트다운 뒤에 시작한다.
     }
@@ -87,7 +86,7 @@ public class SharedHostFrame extends SharedFrame {
 
     /** [버그 14] 양쪽 화면에 남은 초를 띄운다. 판 상태를 먼저 보내고 그다음 카운트를 보낸다 (참가자 글자가 덮이지 않게). */
     private void showCountdown() {
-        scoreLabel.setText(countdown + "초 뒤에 시작합니다");
+        view.showStatus(countdown + "초 뒤에 시작합니다");
         connection.send(new SharedStateMessage(game));
         connection.send(COUNT + countdown);
     }
@@ -102,7 +101,7 @@ public class SharedHostFrame extends SharedFrame {
         refresh();
     }
 
-    /** [버그 9] 창이 닫히거나 연결이 끊기면 타이머를 모두 멈춘다. */
+    /** [버그 9] 화면을 떠나거나 연결이 끊기면 타이머를 모두 멈춘다. */
     @Override
     protected void onClosed() {
         fallTimer.stop();
@@ -111,15 +110,11 @@ public class SharedHostFrame extends SharedFrame {
 
     /** 화면을 다시 그리고, 끝났으면 결과를 띄우고, 판 상태를 참가자에게 보낸다. */
     private void refresh() {
-        view.setState(game);
-        if (game.isGameOver() && !settled) {
-            settled = true;
-            ResultPanel.showShared(this, connection, game.getWinner(), 0, fee, onExit);
-        }
+        view.showState(game);
         long left = Math.max(0, (endTime - System.currentTimeMillis()) / 1000);
-        scoreLabel.setText("남은 시간 " + left / 60 + ":" + String.format("%02d", left % 60)
-                + "  |  나(P1): " + game.getScore(0) + "  상대(P2): " + game.getScore(1));
+        view.showStatus("남은 시간 " + left / 60 + ":" + String.format("%02d", left % 60));
         connection.send(new SharedStateMessage(game));
+        finish(game, 0);
     }
 
     /** 참가자에게서 받은 메시지: 준비 신호(READY) 또는 키 입력(InputMessage). */
@@ -145,7 +140,7 @@ public class SharedHostFrame extends SharedFrame {
 
     /** 방장이 직접 누른 키. */
     @Override
-    protected void onKey(InputMessage.Action action) {
+    public void onKey(InputMessage.Action action) {
         if (!started) {
             return;   // [버그 14] 시작 전에는 움직이지 않는다
         }

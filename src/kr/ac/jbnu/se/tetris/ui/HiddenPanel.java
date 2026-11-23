@@ -6,7 +6,6 @@ import kr.ac.jbnu.se.tetris.game.Sfx;
 import kr.ac.jbnu.se.tetris.save.Settings;
 import kr.ac.jbnu.se.tetris.save.Wallet;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -49,17 +48,12 @@ class HiddenPanel extends DesignPanel {
 	/** 기믹을 하나 더 거는 간격. */
 	private static final int GIMMICK_MS = 8000;
 
-	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
+	// 십자의 네 귀퉁이가 비므로 다른 화면과 같은 어닝 상자를 거기에 둔다
+	private static final Rectangle SCORE = new Rectangle(140, 300, 322, 200);
+	private static final Rectangle PICK = new Rectangle(1538, 300, 322, 200);
+	private static final Rectangle GIMMICK = new Rectangle(140, 1000, 322, 250);
 
-	// 십자의 네 귀퉁이가 비므로 다른 화면과 같은 탭 + 상자를 거기에 둔다
-	private static final Rectangle SCORE_TAB = new Rectangle(140, 240, 190, 62);
-	private static final Rectangle SCORE_BOX = new Rectangle(140, 302, 322, 100);
-	private static final Rectangle PICK_TAB = new Rectangle(1538, 240, 190, 62);
-	private static final Rectangle PICK_BOX = new Rectangle(1538, 302, 322, 100);
-	private static final Rectangle GIMMICK_TAB = new Rectangle(140, 1000, 240, 62);
-
-	/** 고른 판에 걸린 기믹 아이콘을 탭 아래에 한 줄로 둔다. */
-	private static final int GIMMICK_X = 140, GIMMICK_TOP = 1090;
+	/** 고른 판에 걸린 기믹 아이콘을 상자 안에 한 줄로 둔다. */
 	private static final int GIMMICK_ICON = 84, GIMMICK_GAP = 14;
 
 	/** 오른쪽 아래 안내문 */
@@ -83,7 +77,7 @@ class HiddenPanel extends DesignPanel {
 		for (int i = 0; i < SLOTS.length; i++) {
 			final int index = i;
 			Board board = new Board(new JLabel());
-			board.setBackground(Ui.BG);
+			board.setOpaque(false);              // 보드 상자의 하늘색이 비쳐야 한다
 			board.setTurns(TURNS[i]);
 			board.onRepaint(this::repaint);
 			add(board);
@@ -142,7 +136,11 @@ class HiddenPanel extends DesignPanel {
 			board.setPaused(true);
 
 		int total = total();
-		frame.showGameOver(total, Wallet.award(total), MainFrame.HIDDEN);
+		int lines = 0;
+		for (Board board : boards)
+			lines += board.getGame().getLinesRemoved();
+		frame.showGameOver(total, Wallet.award(total), MainFrame.HIDDEN,
+				new String[] { "HIDDEN LEVEL", "Line  " + lines });
 	}
 
 	private int total() {
@@ -169,27 +167,30 @@ class HiddenPanel extends DesignPanel {
 	@Override
 	void layoutDesign() {
 		for (int i = 0; i < boards.length; i++)
-			boards[i].setBounds(screen(SLOTS[i]));
+			boards[i].setBounds(TURNS[i] % 2 == 0     // 옆으로 눕힌 판은 가로·세로 칸 수가 바뀐다
+					? fit(SLOTS[i], GameBoard.WIDTH, GameBoard.VISIBLE_HEIGHT)
+					: fit(SLOTS[i], GameBoard.VISIBLE_HEIGHT, GameBoard.WIDTH));
 	}
 
 	@Override
 	void paintDesign(Graphics2D g) {
-		textCenteredIn(g, "HIDDEN LEVEL", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
+		background(g, SKY);
+		titlePill(g, "HIDDEN LEVEL");
 
+		// 판 상자. 고른 판만 빨간 테두리다
 		for (int i = 0; i < SLOTS.length; i++)
-			frame(g, SLOTS[i], i == selected);
+			boardFrame(g, boards[i].getBounds(), i == selected ? Ui.RED : Ui.BROWN);
 
-		tab(g, SCORE_TAB, "Score", TAB_SIZE);
-		outline(g, SCORE_BOX);
-		valueRight(g, SCORE_BOX, String.format("%06d", total()), VALUE_SIZE, VALUE_PAD);
+		awningPanel(g, SCORE, "SCORE");
+		textInBox(g, String.format("%,d", total()), below(SCORE, 16), 48, Color.BLACK);
 
-		tab(g, PICK_TAB, "Board", TAB_SIZE);
-		outline(g, PICK_BOX);
-		valueRight(g, PICK_BOX, NAMES[selected], VALUE_SIZE, VALUE_PAD);
+		awningPanel(g, PICK, "BOARD");
+		textInBox(g, NAMES[selected], below(PICK, 16), 48, Color.BLACK);
 
-		tab(g, GIMMICK_TAB, "Gimmick", TAB_SIZE);
+		awningPanel(g, GIMMICK, "GIMMICK");
+		Rectangle in = below(GIMMICK, 16);
 		gimmickIcons(g, boards[selected].getGame().getGimmick(),
-				GIMMICK_X, GIMMICK_TOP, GIMMICK_ICON, GIMMICK_GAP);
+				in.x + 10, in.y + (in.height - GIMMICK_ICON) / 2, GIMMICK_ICON, GIMMICK_GAP);
 
 		String[] hints = {
 				"마우스로 판을 고르면 그 판을 조작합니다",
@@ -197,21 +198,9 @@ class HiddenPanel extends DesignPanel {
 				"Esc 일시정지",
 		};
 		for (int i = 0; i < hints.length; i++)
-			text(g, hints[i], HINT_X, HINT_TOP + i * HINT_STEP, HINT_SIZE, DIM_CREAM);
+			text(g, hints[i], HINT_X, HINT_TOP + i * HINT_STEP, HINT_SIZE, Ui.TEXT);
 
 		gear(g);
-	}
-
-	/**
-	 * 판 테두리. 고른 판만 하얗고 굵게 그린다.
-	 * (따로 한 겹 더 두르면 옆 판 테두리와 겹친다)
-	 */
-	private void frame(Graphics2D g, Rectangle slot, boolean on) {
-		Rectangle b = screen(slot);
-		int w = Math.max(1, sz(on ? BORDER + 4 : BORDER));
-		g.setColor(on ? Color.WHITE : Ui.CREAM);
-		g.setStroke(new BasicStroke(w));
-		g.drawRect(b.x - w / 2, b.y - w / 2, b.width + w, b.height + w);
 	}
 
 	/**

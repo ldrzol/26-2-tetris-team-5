@@ -15,17 +15,16 @@ import java.util.function.Consumer;
  * 여러 개 중 하나를 고르는 덮개. 피버에서 블록을 고를 때와, 대전 시작에서
  * 가방에 있는 아이템 하나를 고를 때 쓴다.
  *
- * InputOverlay 와 같은 크림색 카드 모양이고, 칸을 누르거나 1~7 키로 고른다.
+ * InputOverlay 와 같은 어두운 카드 모양이고, 칸을 누르거나 1~7 키로 고른다.
  * 반드시 하나를 골라야 하므로 Esc 로 닫을 수 없다.
  */
 class PickOverlay extends DesignPanel {
 
-	private static final int CARD_X = 250, CARD_Y = 452, CARD_W = 1500, CARD_H = 440;
+	private static final int CARD_X = 250, CARD_Y = 452, CARD_W = 1500, CARD_H = 460;
 	private static final Rectangle CARD = new Rectangle(CARD_X, CARD_Y, CARD_W, CARD_H);
 
 	private static final int TITLE_TOP = 520;
 	private static final float TITLE_SIZE = 48f, KEY_SIZE = 36f;
-	private static final double TRACKING = 0.1;
 
 	private static final int SLOT = 180, SLOT_GAP = 24, SLOT_TOP = 610;
 	private static final int KEY_TOP = 810;
@@ -100,42 +99,23 @@ class PickOverlay extends DesignPanel {
 		int x = box.x + (box.width - ITEM_ICON) / 2;
 		drawImage(g, image(attack.icon), new Rectangle(x, box.y + ITEM_ICON_TOP, ITEM_ICON, ITEM_ICON));
 
-		g.setColor(Color.BLACK);
-		g.setFont(font(ITEM_LABEL_SIZE));
-		int labelX = px(box.x + box.width / 2) - g.getFontMetrics().stringWidth(attack.label) / 2;
-		g.drawString(attack.label, labelX, py(box.y + ITEM_LABEL_TOP) + g.getFontMetrics().getAscent());
-	}
-
-	@Override
-	void layoutDesign() {
-		// 올려 둘 Swing 부품이 없다. 전부 직접 그린다.
+		textAt(g, attack.label, box.x + box.width / 2.0, box.y + ITEM_LABEL_TOP, ITEM_LABEL_SIZE, Ui.TEXT);
 	}
 
 	@Override
 	void paintDesign(Graphics2D g) {
-		g.setColor(SCRIM);
-		g.fillRect(0, 0, getWidth(), getHeight());
-
-		fill(g, CARD, Ui.CREAM);
-
-		g.setColor(Color.BLACK);
-		g.setFont(font(TITLE_SIZE, TRACKING));
-		int titleX = px(CARD.x + CARD.width / 2) - g.getFontMetrics().stringWidth(title) / 2;
-		g.drawString(title, titleX, py(TITLE_TOP) + g.getFontMetrics().getAscent());
+		scrim(g);
+		darkCard(g, CARD);
+		textAt(g, title, CARD.x + CARD.width / 2.0, TITLE_TOP, TITLE_SIZE, Color.WHITE);
 
 		for (int i = 0; i < count; i++) {
 			Rectangle box = slot(i);
-			outline(g, box, Color.BLACK, SLOT_BORDER);
+			box(g, box, 16, Ui.CREAM, Ui.BROWN, SLOT_BORDER, 6, Ui.SHADOW);
 			if (pieces != null)
 				preview(g, box, pieces[i], i);       // 칸마다 다른 색으로 보여 준다
 			else
 				item(g, box, items[i]);
-
-			String key = String.valueOf(i + 1);
-			g.setColor(Color.BLACK);
-			g.setFont(font(KEY_SIZE, TRACKING));
-			int keyX = px(box.x + box.width / 2) - g.getFontMetrics().stringWidth(key) / 2;
-			g.drawString(key, keyX, py(KEY_TOP) + g.getFontMetrics().getAscent());
+			textAt(g, String.valueOf(i + 1), box.x + box.width / 2.0, KEY_TOP, KEY_SIZE, Ui.YELLOW);
 		}
 	}
 }

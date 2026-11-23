@@ -1,6 +1,6 @@
 package kr.ac.jbnu.se.tetris.ui;
 
-import kr.ac.jbnu.se.tetris.save.Wallet;
+import kr.ac.jbnu.se.tetris.game.Sfx;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -8,76 +8,88 @@ import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 
 /**
- * 게임 종료 안내. Figma "Desktop - 10" 의 덮개 부분.
+ * 판이 끝났을 때 덮는 결과 카드. Figma "리팩 - 게임 오버 / 클리어 화면 / 승패 화면(한 화면)".
  *
- * 게임 화면 위에 반투명하게 덮인다. ←→(↑↓) 로 고르고 Enter 로 선택한다.
- * 글자와 버튼은 디자인의 고정 x 좌표 대신 카드 한가운데를 기준으로 맞춘다.
- * 디자인과 폰트가 달라 글자 폭이 달라지므로, 좌표를 베끼면 가운데가 틀어진다.
- *
- * 대전 결과는 가운데 큰 카드가 두 보드를 가리지 않도록, 보드마다 결과 띠를 얹고
- * 버튼은 두 보드 사이 가운데 줄에 세로로 놓는다.
+ * 게임 화면 위에 반투명하게 덮인다. ←→(↑↓) 로 고르고 Enter 로 선택하거나, 버튼을 누른다.
+ *   - 혼자 하는 판: 가운데 카드 하나에 점수, 시간·레벨·줄 수 (GAME OVER / CLEAR!)
+ *   - 대전: 넓은 카드 안에 양쪽 결과 카드 두 장. 이긴 쪽은 크림색, 진 쪽은 회색이다.
  */
 class GameOverOverlay extends DesignPanel {
 
-	private static final Rectangle CARD = new Rectangle(485, 452, 1029, 519);
+	// 혼자 하는 판 (Figma "리팩 - 게임 오버")
+	private static final Rectangle CARD = new Rectangle(628, 328, 746, 765);
+	private static final int TITLE_TOP = 406, SCORE_TOP = 543, STAT_TOP = 656, STAT_STEP = 55;
+	private static final int BUTTON_TOP = 930;
 
-	private static final int TITLE_TOP = 541, SCORE_TOP = 689;
-	private static final int COIN_GAP = 56;   // 점수 아래 코인 줄
-	private static final float TITLE_SIZE = 96f, TEXT_SIZE = 36f;
-	private static final double TRACKING = 0.1;
-	private static final String SCORE_FORMAT = "Score  %06d";
+	// 대전 (Figma "리팩 - 승패 화면(한 화면)")
+	private static final Rectangle WIDE = new Rectangle(259, 223, 1483, 975);
+	private static final int WIDE_TITLE_TOP = 308, WIDE_BUTTON_TOP = 998;
+	private static final Rectangle[] SIDES = {
+			new Rectangle(493, 468, 469, 461), new Rectangle(1038, 468, 469, 461) };
+	private static final Color[] BADGE = { new Color(0x89C8FD), new Color(0xFAB7CD) };
+	private static final Color LOSE_FILL = new Color(0xA7A7A7);
+	/** 두 카드 아래 한 줄 (정산 결과) */
+	private static final int NOTE_TOP = 946;
+	private static final float NOTE_SIZE = 30f;
 
-	private static final int BUTTON_W = 280, BUTTON_H = 95, BUTTON_GAP = 61;
-	private static final int BUTTON_TOP = 818;   // 디자인은 788. 조금 내렸다
-	private static final int BUTTON_BORDER = 7;
+	private static final int BUTTON_W = 281, BUTTON_H = 131;
+	private static final int[] BUTTON_X = { 689, 1030 };
+	private static final float TITLE_SIZE = 75f, BIG_SIZE = 64f, TEXT_SIZE = 36f;
 
-	private static final int ARROW_W = 21, ARROW_H = 39;
-	private static final int ARROW_GAP = 24;     // 화살표와 글자 사이
+	private final String title, scoreText, coinText;
+	private final String[] stats;
+	private final String[] buttons;
+	private final Runnable[] actions;
 
-	// 대전 결과: 보드 자리는 VersusPanel 의 BOARD_1 / BOARD_2 와 같다
-	private static final Rectangle[] SIDE_BOARDS = {
-			new Rectangle(268, 239, 550, 1100), new Rectangle(1183, 239, 550, 1100) };
-	private static final int BAND_TOP = 560;
-	private static final int BAND_H = 300;
-	private static final int SIDE_TITLE_TOP = 590;
-	private static final int SIDE_SCORE_TOP = 720;
-	private static final Rectangle SIDE_CARD = new Rectangle(852, 905, 296, 290);
-	private static final int SIDE_BUTTON_W = 250;
-	private static final int SIDE_BUTTON_TOP = 935;
-	private static final int SIDE_BUTTON_STEP = 130;
+	/** 대전 결과일 때만 있다. [0] = 왼쪽 보드, [1] = 오른쪽 보드. (lines / items 는 없을 수도 있다) */
+	private final String[] names, results, sideScores, sideLines, sideItems;
 
-	private final String scoreText, coinText, title;
-	private final Runnable onRetry, onMenu;
-
-	/** 대전 결과일 때만 있다. [0] = 왼쪽 보드, [1] = 오른쪽 보드. */
-	private final String[] sideTitles;
-	private final String[] sideScores;
 	private int selected = 0;
 
-	GameOverOverlay(int score, int coins, Runnable onRetry, Runnable onMenu) {
-		this(Wallet.cleared(score) ? "CLEAR!" : "GAME OVER", score, coins, onRetry, onMenu);
+	/**
+	 * 혼자 하는 판의 결과. stats 는 점수 아래 작은 줄들 (예: "07:00", "Level 2", "Line 32").
+	 * coins 가 0 이면 코인 줄을 그리지 않는다.
+	 */
+	GameOverOverlay(String title, int score, String[] stats, int coins,
+			String first, Runnable onFirst, Runnable onMenu) {
+		this(title, String.format("%,d", score), stats, coins, new String[] { first, "메인으로" },
+				new Runnable[] { onFirst, onMenu }, null, null, null, null, null);
 	}
 
-	GameOverOverlay(String title, int score, int coins, Runnable onRetry, Runnable onMenu) {
-		this(title, String.format(SCORE_FORMAT, score), coins, null, null, onRetry, onMenu);
+	/**
+	 * 대전 결과. names 예) "1P" / "2P", results 예) "WIN" / "LOSE" / "DRAW".
+	 * lines / items 가 null 이면 그 줄을 그리지 않는다. note 는 카드 아래 한 줄 (정산 결과), 없으면 null.
+	 */
+	GameOverOverlay(String[] names, String[] results, int[] scores, int[] lines, int[] items, String note,
+			String first, Runnable onFirst, Runnable onMenu) {
+		this("GAME OVER", null, null, note, new String[] { first, "메인으로" },
+				new Runnable[] { onFirst, onMenu }, names, results,
+				new String[] { String.format("%,d", scores[0]), String.format("%,d", scores[1]) },
+				lines == null ? null : new String[] { "Line  " + lines[0], "Line  " + lines[1] },
+				items == null ? null : new String[] { "Item  " + items[0], "Item  " + items[1] });
 	}
 
-	/** 대전 결과. titles 예) "1P WIN" / "2P LOSE". coins 는 왼쪽(나) 정산 코인. */
-	GameOverOverlay(String[] titles, int[] scores, int coins, Runnable onRetry, Runnable onMenu) {
-		this(null, null, coins, titles, new String[] {
-				String.format(SCORE_FORMAT, scores[0]), String.format(SCORE_FORMAT, scores[1]) },
-				onRetry, onMenu);
+	private GameOverOverlay(String title, String scoreText, String[] stats, int coins, String[] buttons,
+			Runnable[] actions, String[] names, String[] results, String[] sideScores, String[] sideLines,
+			String[] sideItems) {
+		this(title, scoreText, stats, coins > 0 ? "코인 +" + coins : null, buttons, actions, names, results,
+				sideScores, sideLines, sideItems);
 	}
 
-	private GameOverOverlay(String title, String scoreText, int coins, String[] sideTitles,
-			String[] sideScores, Runnable onRetry, Runnable onMenu) {
+	private GameOverOverlay(String title, String scoreText, String[] stats, String coinText, String[] buttons,
+			Runnable[] actions, String[] names, String[] results, String[] sideScores, String[] sideLines,
+			String[] sideItems) {
 		this.title = title;
 		this.scoreText = scoreText;
-		this.coinText = coins > 0 ? "코인  +" + coins : null;
-		this.sideTitles = sideTitles;
+		this.stats = stats;
+		this.coinText = coinText;
+		this.buttons = buttons;
+		this.actions = actions;
+		this.names = names;
+		this.results = results;
 		this.sideScores = sideScores;
-		this.onRetry = onRetry;
-		this.onMenu = onMenu;
+		this.sideLines = sideLines;
+		this.sideItems = sideItems;
 		setOpaque(false);   // 뒤 게임 화면이 비쳐야 한다
 
 		Ui.bind(this, KeyEvent.VK_LEFT, "overLeft", () -> move(-1));
@@ -85,100 +97,82 @@ class GameOverOverlay extends DesignPanel {
 		Ui.bind(this, KeyEvent.VK_UP, "overUp", () -> move(-1));
 		Ui.bind(this, KeyEvent.VK_DOWN, "overDown", () -> move(+1));
 		Ui.bind(this, KeyEvent.VK_ENTER, "overEnter", this::choose);
-	}
-
-	/** Enter: 고른 버튼을 누른다. */
-	private void choose() {
-		(selected == 0 ? onRetry : onMenu).run();
+		for (int i = 0; i < 2; i++) {
+			final int index = i;
+			onClick(button(i), () -> {
+				selected = index;
+				choose();
+			});
+		}
 	}
 
 	private boolean versus() {
-		return sideTitles != null;
+		return names != null;
 	}
 
 	private void move(int d) {
 		selected = (selected + d + 2) % 2;
+		Sfx.play(Sfx.Sound.MOVE);
 		repaint();
 	}
 
-	/** 두 버튼을 한 덩어리로 보고 카드 가운데에 놓는다. 대전 결과는 가운데 줄에 세로로. */
-	private Rectangle button(int index) {
-		if (versus())
-			return new Rectangle(DESIGN_W / 2 - SIDE_BUTTON_W / 2, SIDE_BUTTON_TOP + index * SIDE_BUTTON_STEP,
-					SIDE_BUTTON_W, BUTTON_H);
-		int total = BUTTON_W * 2 + BUTTON_GAP;
-		int x = cardCenterX() - total / 2 + index * (BUTTON_W + BUTTON_GAP);
-		return new Rectangle(x, BUTTON_TOP, BUTTON_W, BUTTON_H);
+	private void choose() {
+		Sfx.play(Sfx.Sound.ROTATE);
+		actions[selected].run();
 	}
 
-	private int cardCenterX() {
-		return CARD.x + CARD.width / 2;
+	private Rectangle button(int index) {
+		return new Rectangle(BUTTON_X[index], versus() ? WIDE_BUTTON_TOP : BUTTON_TOP, BUTTON_W, BUTTON_H);
 	}
 
 	@Override
 	void paintDesign(Graphics2D g) {
+		scrim(g);
 		if (versus())
 			paintVersus(g);
 		else
 			paintSingle(g);
 
-		drawButton(g, button(0), "다시 하기", selected == 0);
-		drawButton(g, button(1), "메인으로", selected == 1);
+		for (int i = 0; i < 2; i++)
+			smallOval(g, button(i), buttons[i], TEXT_SIZE, i == selected);
 	}
 
 	private void paintSingle(Graphics2D g) {
-		g.setColor(SCRIM);
-		g.fillRect(0, 0, getWidth(), getHeight());
-
-		fill(g, CARD, Ui.CREAM);
-		centered(g, title, cardCenterX(), TITLE_TOP, TITLE_SIZE, Color.BLACK);
-		centered(g, scoreText, cardCenterX(), SCORE_TOP, TEXT_SIZE, Color.BLACK);
-		if (coinText != null)
-			centered(g, coinText, cardCenterX(), SCORE_TOP + COIN_GAP, TEXT_SIZE, Color.BLACK);
-	}
-
-	/** 두 보드는 그대로 보이게 두고, 보드 가운데에 결과 띠만 얹는다. */
-	private void paintVersus(Graphics2D g) {
-		for (int i = 0; i < SIDE_BOARDS.length; i++) {
-			Rectangle board = SIDE_BOARDS[i];
-			int cx = board.x + board.width / 2;
-			fill(g, new Rectangle(board.x, BAND_TOP, board.width, BAND_H), SCRIM);
-			Color color = sideTitles[i].endsWith("LOSE") ? DIM_CREAM : Ui.CREAM;
-			centered(g, sideTitles[i], cx, SIDE_TITLE_TOP, TITLE_SIZE, color);
-			centered(g, sideScores[i], cx, SIDE_SCORE_TOP, TEXT_SIZE, Ui.CREAM);
-			if (i == 0 && coinText != null)
-				centered(g, coinText, cx, SIDE_SCORE_TOP + COIN_GAP, TEXT_SIZE, Ui.CREAM);
+		darkCard(g, CARD);
+		textCentered(g, title, TITLE_TOP, TITLE_SIZE, Color.WHITE);
+		textCentered(g, scoreText, SCORE_TOP, BIG_SIZE, Color.WHITE);
+		int top = STAT_TOP;
+		for (String s : stats) {
+			textCentered(g, s, top, TEXT_SIZE, Color.WHITE);
+			top += STAT_STEP;
 		}
-		fill(g, SIDE_CARD, Ui.CREAM);
+		if (coinText != null)
+			textCentered(g, coinText, top, TEXT_SIZE, Ui.YELLOW);
 	}
 
-	private void centered(Graphics2D g, String s, int designCenterX, int designTop, float size, Color color) {
-		g.setColor(color);
-		g.setFont(font(size, TRACKING));
-		int x = px(designCenterX) - g.getFontMetrics().stringWidth(s) / 2;
-		g.drawString(s, x, py(designTop) + g.getFontMetrics().getAscent());
-	}
+	private void paintVersus(Graphics2D g) {
+		darkCard(g, WIDE);
+		textCentered(g, title, WIDE_TITLE_TOP, TITLE_SIZE, Color.WHITE);
 
-	/** 고른 버튼은 검게 채우고 글자를 크림색으로, 나머지는 테두리만 그린다. */
-	private void drawButton(Graphics2D g, Rectangle r, String label, boolean on) {
-		if (on)
-			fill(g, r, Color.BLACK);
-		else
-			outline(g, r, Color.BLACK, BUTTON_BORDER);
+		for (int i = 0; i < SIDES.length; i++) {
+			Rectangle r = SIDES[i];
+			double cx = r.x + r.width / 2.0;
+			Color fill = "LOSE".equals(results[i]) ? LOSE_FILL : Ui.CREAM;
+			box(g, r, 15, fill, Ui.BROWN, 10, 19, Ui.SHADOW);
 
-		g.setColor(on ? Ui.CREAM : Color.BLACK);
-		g.setFont(font(TEXT_SIZE, TRACKING));
-		int textW = g.getFontMetrics().stringWidth(label);
-		int textX = px(r.x) + (sz(r.width) - textW) / 2;
-		g.drawString(label, textX, centeredBaseline(g, r.y, r.height));
+			int badgeW = Math.max(112, textWidth(g, names[i], 40) + 50);
+			Rectangle badge = new Rectangle((int) Math.round(cx - badgeW / 2.0), r.y + 31, badgeW, 69);
+			box(g, badge, 34, BADGE[i], null, 0, 0, null);
+			textInBox(g, names[i], badge, 40, Color.BLACK);
 
-		if (!on)
-			return;
-
-		// 화살표는 글자 왼쪽에, 버튼 세로 가운데에 놓는다
-		int arrowW = sz(ARROW_W), arrowH = sz(ARROW_H);
-		int arrowY = py(r.y) + (sz(r.height) - arrowH) / 2;
-		if (ARROW_ICON != null)
-			g.drawImage(ARROW_ICON, textX - sz(ARROW_GAP) - arrowW, arrowY, arrowW, arrowH, this);
+			textAt(g, results[i], cx, r.y + 118, BIG_SIZE, Color.BLACK);
+			textAt(g, sideScores[i], cx, r.y + 212, BIG_SIZE, Color.BLACK);
+			if (sideLines != null)
+				textAt(g, sideLines[i], cx, r.y + 307, TEXT_SIZE, Color.BLACK);
+			if (sideItems != null)
+				textAt(g, sideItems[i], cx, r.y + 351, TEXT_SIZE, Color.BLACK);
+		}
+		if (coinText != null)
+			textCentered(g, coinText, NOTE_TOP, NOTE_SIZE, Ui.YELLOW);
 	}
 }

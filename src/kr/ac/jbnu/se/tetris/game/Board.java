@@ -293,7 +293,7 @@ public class Board extends JPanel {
 		if (gridCache == null || gridCacheW != w || gridCacheH != h) {
 			gridCache = new BufferedImage(w + 1, h + 1, BufferedImage.TYPE_INT_ARGB);
 			Graphics2D gc = gridCache.createGraphics();
-			gc.setColor(new Color(0xF1, 0xE7, 0xD3, 40));   // 어두운 판 위에 보이도록 연한 크림색
+			gc.setColor(new Color(0xA8, 0x69, 0x3F, 60));   // 하늘색 판 위에 보이도록 연한 갈색
 			for (int j = 0; j <= GameBoard.WIDTH; j++)
 				gc.drawLine(j * sw, 0, j * sw, h);
 			for (int i = 0; i <= GameBoard.VISIBLE_HEIGHT; i++)
@@ -344,6 +344,8 @@ public class Board extends JPanel {
 			g.rotate(Math.PI / 2 * turns);
 		g.translate(-(boardW / 2), -(boardH / 2));
 		int boardTop = 0;
+		// 판 위쪽(숨김 줄)에 있는 블록의 테두리가 판 안으로 1px 삐져나오지 않게 위를 자른다
+		g.clipRect(-boardW, 0, boardW * 3, boardH * 2);
 
 		// [기믹] FLIP: 판 영역의 중심을 기준으로 180도 돌려서 그린다
 		if (game.getGimmick().flipsBoard())
