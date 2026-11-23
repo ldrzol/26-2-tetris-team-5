@@ -70,6 +70,7 @@ public class PeerConnection {
 	public void send(Object message) {
 		try {
 			out.writeObject(message);
+			out.reset();
 		} catch (IOException e) {
 			System.out.println("전송 실패: " + e.getMessage());
 		}
