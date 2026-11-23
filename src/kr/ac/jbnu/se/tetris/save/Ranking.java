@@ -124,7 +124,7 @@ public final class Ranking {
 		LocalDateTime end = now.toLocalDate()
 				.with(TemporalAdjusters.next(DayOfWeek.MONDAY)).atStartOfDay();
 		Duration left = Duration.between(now, end);
-		return "주간 랭킹 마감까지 " + left.toDays() + "일 " + left.toHours() + "시간";
+		return "주간 랭킹 마감까지 " + left.toDays() + "일 " + left.toHours() % 24 + "시간 " + left.toMinutes() % 60 + "분";
 	}
 
 	/** 점수 내림차순. 같은 점수면 먼저 기록한 쪽이 위다 (sort 가 안정 정렬이다). */

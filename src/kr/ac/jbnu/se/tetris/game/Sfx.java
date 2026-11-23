@@ -114,6 +114,5 @@ public final class Sfx {
 			Thread.sleep(500);
 		}
 		System.out.println(broken ? "소리 장치를 찾지 못했습니다 (게임은 그대로 돌아갑니다)" : "ok");
-		System.exit(0);
 	}
 }

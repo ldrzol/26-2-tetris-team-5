@@ -17,17 +17,21 @@ public final class Settings {
 	public static final int LEFT = 0, RIGHT = 1, ROTATE_CW = 2, ROTATE_CCW = 3, SOFT_DROP = 4, HARD_DROP = 5, HOLD = 6;
 
 	/**
-	 * [동작][0] = 1p, [동작][1] = 2p. 1p 는 가장 널리 쓰이는 배치다.
-	 *   ←/→ 이동, ↑ 시계 회전, Z 반시계 회전, ↓ 소프트 드롭, Space 하드 드롭, C 홀드
+	 * [동작][0] = 1p, [동작][1] = 2p.
+	 *
+	 * 한 화면 2인에서 손이 겹치지 않게 1p 는 왼손(WASD 쪽, 왼쪽 보드), 2p 는 오른손(방향키 쪽, 오른쪽 보드)만 쓴다.
+	 *   1p: A/D 이동, W 시계 회전, Q 반시계 회전, S 소프트 드롭, E 하드 드롭, R 홀드
+	 *   2p: ←/→ 이동, ↑ 시계 회전, / 반시계 회전, ↓ 소프트 드롭, Enter 하드 드롭, . 홀드
+	 * 혼자 할 때는 예전 배치(방향키, Z 반시계, X 시계, C·Shift 홀드, Space 하드 드롭)도 보조 키로 된다. (ui.GameKeys)
 	 */
 	public static final int[][] DEFAULT_KEYS = {
-			{ KeyEvent.VK_LEFT, KeyEvent.VK_A },
-			{ KeyEvent.VK_RIGHT, KeyEvent.VK_D },
-			{ KeyEvent.VK_UP, KeyEvent.VK_W },
-			{ KeyEvent.VK_Z, KeyEvent.VK_Q },
-			{ KeyEvent.VK_DOWN, KeyEvent.VK_S },
-			{ KeyEvent.VK_SPACE, KeyEvent.VK_E },
-			{ KeyEvent.VK_C, KeyEvent.VK_R },
+			{ KeyEvent.VK_A, KeyEvent.VK_LEFT },
+			{ KeyEvent.VK_D, KeyEvent.VK_RIGHT },
+			{ KeyEvent.VK_W, KeyEvent.VK_UP },
+			{ KeyEvent.VK_Q, KeyEvent.VK_SLASH },
+			{ KeyEvent.VK_S, KeyEvent.VK_DOWN },
+			{ KeyEvent.VK_E, KeyEvent.VK_ENTER },
+			{ KeyEvent.VK_R, KeyEvent.VK_PERIOD },
 	};
 
 	public static final int DEFAULT_VOLUME = 70;
@@ -55,7 +59,7 @@ public final class Settings {
 	public static void main(String[] args) {
 		int[][] mine = copy(DEFAULT_KEYS);
 		mine[0][0] = KeyEvent.VK_Z;
-		assert DEFAULT_KEYS[0][0] == KeyEvent.VK_LEFT : "사본을 고치면 기본값도 바뀐다";
+		assert DEFAULT_KEYS[0][0] == KeyEvent.VK_A : "사본을 고치면 기본값도 바뀐다";
 		assert keys.length == ACTIONS.length : "조작키 줄 수가 동작 수와 다르다";
 		System.out.println("ok");
 	}

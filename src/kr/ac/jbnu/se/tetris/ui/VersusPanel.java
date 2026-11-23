@@ -94,12 +94,16 @@ class VersusPanel extends DesignPanel {
 	private static final int ITEM_LABEL_DROP = 94, ITEM_HINT_DROP = 128;
 	private static final float ITEM_SIZE = 28f, ITEM_HINT_SIZE = 22f;
 
-	/** 손패를 고르는 키와 쓰는 키. [0] = 1p, [1] = 2p. 고르는 키 수는 HAND_SIZE 와 같다. */
-	private static final int[][] SELECT_KEYS = {
-			{ KeyEvent.VK_1, KeyEvent.VK_2, KeyEvent.VK_3 },
-			{ KeyEvent.VK_7, KeyEvent.VK_8, KeyEvent.VK_9 } };
-	private static final int[] USE_KEYS = { KeyEvent.VK_F, KeyEvent.VK_L };
-	private static final String[] ITEM_HINTS = { "선택 1~3 · 사용 F", "선택 7~9 · 사용 L" };
+	/** 아이템을 쓰거나 받았을 때 그 사람 아이템 칸에 글자를 띄우고 칸을 반짝이는 시간(ms). */
+	private static final int NOTICE_MS = 1500;
+
+	// 왼쪽 위 뒤로 버튼 (환경 설정 화면의 뒤로와 같은 모양)
+	private static final Rectangle BACK = new Rectangle(18, 66, 232, 81);
+	private static final Rectangle BACK_ARROW = new Rectangle(77, 88, 20, 37);
+	private static final int BACK_TEXT_X = 124;
+	private static final int BACK_TEXT_TOP = 79;
+	private static final String LEAVE = "나가기";
+	private static final String STAY = "계속하기";
 
 	private static final int TITLE_TOP = 39, TITLE_HEIGHT = 65;
 	private static final int VS_TOP = 561, VS_HEIGHT = 80;
@@ -147,6 +151,11 @@ class VersusPanel extends DesignPanel {
 
 	private final Timer clock = new Timer(1000, e -> tick());
 
+	/** 아이템 칸 안내 글자와 반짝일 칸. [0] = 왼쪽, [1] = 오른쪽. 칸이 없으면 -1. */
+	private final String[] notice = new String[2];
+	private final int[] noticeSlot = { -1, -1 };
+	private final long[] noticeUntil = new long[2];
+
 	/** AI 대전 또는 같은 PC 대전. */
 	VersusPanel(MainFrame frame, String kind, boolean aiRival) {
 		this(frame, kind, aiRival, null, 0);
@@ -169,12 +178,11 @@ class VersusPanel extends DesignPanel {
 		add(playerBoard);
 		add(rivalBoard);
 
-		GameKeys.bind(this, 0, playerBoard);   // 설정한 조작키 (+ X, Shift 보조 키)
-		if (local)
-			GameKeys.bind(this, 1, rivalBoard);   // 2p 조작키 (기본 WASD)
+		bindGameKeys();
 		Ui.bind(this, KeyEvent.VK_ESCAPE, "pause", this::pause);
 		Ui.bind(this, KeyEvent.VK_P, "pause2", this::pause);
 		onGear(this::pause);
+		onClick(BACK, this::askLeave);
 
 		playerBoard.onFever(() -> fever(0));
 		if (local)
@@ -239,6 +247,7 @@ class VersusPanel extends DesignPanel {
 	}
 
 	private void receiveItem(ItemMessage item) {
+		notice(0, "상대 " + item.attack.label + "!", -1);
 		if (item.attack == Attack.SWAP)
 			receiveSwap(item);
 		else
@@ -269,10 +278,30 @@ class VersusPanel extends DesignPanel {
 	private void bindItemKeys(int player) {
 		for (int i = 0; i < HAND_SIZE; i++) {
 			final int slot = i;
-			Ui.bind(this, SELECT_KEYS[player][i], "pick" + player + slot, () -> select(player, slot));
+			Ui.bind(this, GameKeys.ITEM_SELECT[hand(player)][i], "pick" + player + slot, () -> select(player, slot));
 			onClick(itemSlot(ITEM_BOXES[player], slot), () -> select(player, slot));
 		}
-		Ui.bind(this, USE_KEYS[player], "use" + player, () -> useItem(player, picked[player]));
+		Ui.bind(this, GameKeys.ITEM_USE[hand(player)], "use" + player, () -> useItem(player, picked[player]));
+	}
+
+	/** 한 화면 2인의 2P 는 방향키 쪽 손이라 오른손 아이템 키를, 나머지는 왼손 키(1 2 3 · F)를 쓴다. */
+	private int hand(int player) {
+		return local && player == 1 ? GameKeys.RIGHT_HAND : GameKeys.LEFT_HAND;
+	}
+
+	/** 아이템 칸에 글자를 잠깐 띄운다. 시간이 지나면 다시 그려서 지운다. */
+	private void notice(int player, String text, int slot) {
+		notice[player] = text;
+		noticeSlot[player] = slot;
+		noticeUntil[player] = System.currentTimeMillis() + NOTICE_MS;
+		Timer off = new Timer(NOTICE_MS, e -> repaint());
+		off.setRepeats(false);
+		off.start();
+		repaint();
+	}
+
+	private boolean noticeOn(int player) {
+		return notice[player] != null && System.currentTimeMillis() < noticeUntil[player];
 	}
 
 	private void select(int player, int slot) {
@@ -356,8 +385,10 @@ class VersusPanel extends DesignPanel {
 		for (int i = 0; i < HAND_SIZE; i++)
 			if (hands[player][i] == null) {
 				hands[player][i] = item;
+				notice(player, "+ " + item.label, i);
 				return;
 			}
+		notice(player, "가방으로: " + item.label, -1);   // 손패가 차서 가방에만 들어갔다
 	}
 
 	/** 고른 자리의 아이템을 쓴다. 가방에 없으면 자리만 비운다. */
@@ -373,6 +404,7 @@ class VersusPanel extends DesignPanel {
 			return;
 		}
 		Sfx.play(Sfx.Sound.ITEM);
+		notice(player, attack.label + " 사용!", slot);
 
 		if (attack.self)
 			board(player).getGame().getGimmick().apply(attack);
@@ -405,6 +437,7 @@ class VersusPanel extends DesignPanel {
 		} else {
 			theirs.getGimmick().apply(attack);
 		}
+		notice(1 - player, attack.label + " 공격 받음!", -1);
 		board(1 - player).repaint();
 	}
 
@@ -451,10 +484,29 @@ class VersusPanel extends DesignPanel {
 			rivalBoard.setPaused(true);
 	}
 
-	private void resume() {
-		GameKeys.bind(this, 0, playerBoard);   // 일시정지 중에 설정을 바꿨을 수 있다
+	/** 뒤로: 판을 멈추고 정말 나갈지 묻는다. */
+	private void askLeave() {
+		if (!isEnabled())
+			return;          // 덮개가 떠 있다. (마우스는 덮개를 지나 이 화면까지 온다)
+		pauseBoards();
+		frame.showChoice("게임을 그만두고 나갈까요?", LEAVE, STAY, answer -> {
+			if (LEAVE.equals(answer))
+				frame.showScreen(MainFrame.MULTI);
+			else
+				resume();
+		});
+	}
+
+	/** 한 화면 2인은 1P WASD 쪽 / 2P 방향키 쪽으로 나눠 건다. 혼자 조종하면 보조 키·방향키도 1P 것이다. */
+	private void bindGameKeys() {
 		if (local)
-			GameKeys.bind(this, 1, rivalBoard);
+			GameKeys.bindPair(this, playerBoard, rivalBoard);
+		else
+			GameKeys.bind(this, 0, playerBoard);
+	}
+
+	private void resume() {
+		bindGameKeys();     // 일시정지 중에 설정을 바꿨을 수 있다
 		playerBoard.setPaused(false);
 		if (connection == null)
 			rivalBoard.setPaused(false);
@@ -511,7 +563,21 @@ class VersusPanel extends DesignPanel {
 
 		String title = resultTitle();
 		int coins = connection != null ? settle(title) : 0;
-		frame.showResult(title, playerBoard.score(), coins, kind);
+		frame.showVersusResult(sideTitles(title), new int[] { playerBoard.score(), rivalScore() }, coins, kind);
+	}
+
+	/** 결과를 보드마다 적는다. 예) 한 화면 2인에서 2P 가 이기면 "1P LOSE" / "2P WIN". */
+	private String[] sideTitles(String title) {
+		String[] names = { "나", connection != null ? "상대" : "AI" };
+		if (local)
+			names = new String[] { "1P", "2P" };
+		String left = title.startsWith("YOU ") ? title.substring(4) : title;   // WIN / LOSE / DRAW
+		String right = left;
+		if (left.equals("WIN"))
+			right = "LOSE";
+		else if (left.equals("LOSE"))
+			right = "WIN";
+		return new String[] { names[0] + " " + left, names[1] + " " + right };
 	}
 
 	/** 참가비를 정산하고 받은 코인을 돌려준다. */
@@ -588,6 +654,10 @@ class VersusPanel extends DesignPanel {
 		textCenteredIn(g, "TETRIS", TITLE_TOP, TITLE_HEIGHT, TITLE_SIZE, Ui.CREAM);
 		textCenteredIn(g, "VS", VS_TOP, VS_HEIGHT, BIG_SIZE, Color.WHITE);
 
+		outline(g, BACK);
+		drawImageFlipped(g, ARROW_ICON, BACK_ARROW);
+		text(g, "뒤로", BACK_TEXT_X, BACK_TEXT_TOP, TAB_SIZE, Ui.CREAM);
+
 		g.setColor(Color.WHITE);
 		g.setFont(font(BIG_SIZE));
 		// 디자인에는 "!st" / "2st" 로 적혀 있으나 오타라 1st / 2nd 로 쓴다
@@ -608,23 +678,39 @@ class VersusPanel extends DesignPanel {
 		tab(g, ITEM_TABS[player], (player + 1) + "P Item", TAB_SIZE);
 		outline(g, box);
 
-		for (int i = 0; i < HAND_SIZE; i++) {
-			Rectangle slot = itemSlot(box, i);
-			Attack attack = hands[player][i];
-
-			outline(g, slot, ours(player) && i == picked[player] ? Color.WHITE : DIM_CREAM,
-					ITEM_SLOT_BORDER);
-			if (attack != null)
-				drawImage(g, image(attack.icon), centered(slot, ITEM_ICON));
-		}
+		for (int i = 0; i < HAND_SIZE; i++)
+			drawItemSlot(g, player, i, itemSlot(box, i));
 
 		// 상자 가로 가운데가 디자인 화면 가운데(1000)와 같아서 textCentered 로 맞는다.
-		Attack chosen = hands[player][picked[player]];
-		if (ours(player))
-			textCentered(g, chosen == null ? "-" : chosen.label, box.y + ITEM_LABEL_DROP,
-					ITEM_SIZE, chosen == null ? DIM_CREAM : Ui.CREAM, 0);
-		textCentered(g, ours(player) ? ITEM_HINTS[player] : "상대 가방",
+		itemLabel(g, player, box.y + ITEM_LABEL_DROP);
+		textCentered(g, ours(player) ? GameKeys.itemHint(hand(player)) : "상대 가방",
 				box.y + ITEM_HINT_DROP, ITEM_HINT_SIZE, DIM_CREAM, 0);
+	}
+
+	/** 손패 한 칸. 방금 쓰거나 받은 칸은 반짝이고, 고른 칸은 흰 테두리다. */
+	private void drawItemSlot(Graphics2D g, int player, int index, Rectangle slot) {
+		if (noticeOn(player) && index == noticeSlot[player])
+			fill(g, slot, DIM_CREAM);
+		boolean chosen = ours(player) && index == picked[player];
+		outline(g, slot, chosen ? Color.WHITE : DIM_CREAM, ITEM_SLOT_BORDER);
+		Attack attack = hands[player][index];
+		if (attack != null)
+			drawImage(g, image(attack.icon), centered(slot, ITEM_ICON));
+	}
+
+	/** 칸 아래 한 줄: 알림이 떠 있으면 알림, 아니면 고른 아이템 이름. (상대 가방은 이름을 숨긴다) */
+	private void itemLabel(Graphics2D g, int player, int top) {
+		if (noticeOn(player)) {
+			textCentered(g, notice[player], top, ITEM_SIZE, Ui.CREAM, 0);
+			return;
+		}
+		if (!ours(player))
+			return;
+		Attack chosen = hands[player][picked[player]];
+		if (chosen == null)
+			textCentered(g, "-", top, ITEM_SIZE, DIM_CREAM, 0);
+		else
+			textCentered(g, chosen.label, top, ITEM_SIZE, Ui.CREAM, 0);
 	}
 
 	/** 아이템 칸 세 개를 상자 가운데에 한 줄로 늘어놓는다. */

@@ -156,19 +156,14 @@ public class MainFrame extends JFrame {
 				() -> showScreen(MENU)));
 	}
 
-	/** 게임 위에 반투명 GAME OVER 를 덮는다. kind 는 '다시 하기' 로 돌아갈 화면. */
-	void showGameOver(int score, String kind) {
-		showGameOver(score, 0, kind);
-	}
-
-	/** coins 는 이번 판으로 받은 코인. 0이면 줄을 그리지 않는다. */
+	/** 게임 위에 반투명 GAME OVER 를 덮는다. kind 는 '다시 하기' 로 돌아갈 화면. coins 가 0이면 코인 줄을 그리지 않는다. */
 	void showGameOver(int score, int coins, String kind) {
 		showOverlay(new GameOverOverlay(score, coins, () -> showScreen(kind), () -> showScreen(MENU)));
 	}
 
-	/** 대전 결과. title 은 YOU WIN / YOU LOSE / DRAW. coins 는 정산으로 받은 코인. */
-	void showResult(String title, int score, int coins, String kind) {
-		showOverlay(new GameOverOverlay(title, score, coins, () -> showScreen(kind), () -> showScreen(MENU)));
+	/** 대전 결과. titles·scores 는 [0] = 왼쪽 보드, [1] = 오른쪽 보드. coins 는 정산으로 받은 코인. */
+	void showVersusResult(String[] titles, int[] scores, int coins, String kind) {
+		showOverlay(new GameOverOverlay(titles, scores, coins, () -> showScreen(kind), () -> showScreen(MENU)));
 	}
 
 	/** 네트워크 2인 대전을 띄운다. 끝나면 참가비를 정산한다. */
@@ -189,7 +184,8 @@ public class MainFrame extends JFrame {
 				},
 				() -> showScreen(kind),
 				() -> showScreen(MENU),
-				() -> showOverlay(new SettingsScreen(() -> showPause(kind, onResume)))));
+				() -> showOverlay(new SettingsScreen(() -> showPause(kind, onResume))),
+				GameKeys.guide(kind)));
 	}
 
 	/**

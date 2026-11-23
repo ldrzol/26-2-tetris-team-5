@@ -77,6 +77,9 @@ class SettingsScreen extends DesignPanel {
 	/** 새 키를 기다리는 칸. (줄 * 2 + 열), 없으면 -1 */
 	private int waiting = -1;
 
+	/** 이미 쓰는 키를 골랐을 때 안내. 없으면 null */
+	private String warning = null;
+
 	SettingsScreen(Runnable onBack) {
 		this.onBack = onBack;
 
@@ -142,10 +145,28 @@ class SettingsScreen extends DesignPanel {
 				onBack.run();
 			return;
 		}
-		if (code != KeyEvent.VK_ESCAPE)   // Esc 는 취소
+		if (code != KeyEvent.VK_ESCAPE) {   // Esc 는 취소
+			String clash = clash(code, waiting);
+			if (clash != null) {
+				// 같은 키를 두 동작에 넣으면 나중에 건 쪽만 먹고 한쪽이 먹통이 된다. 받지 않고 다시 기다린다.
+				warning = GameKeys.keyName(code) + " 는 이미 " + clash + " 키입니다. 다른 키를 누르세요";
+				repaint();
+				return;
+			}
 			keys[waiting / 2][waiting % 2] = code;
+		}
+		warning = null;
 		waiting = -1;
 		repaint();
+	}
+
+	/** code 를 이미 쓰는 곳. 바꾸려는 칸 자신은 빼고 본다. 없으면 null. */
+	private String clash(int code, int cell) {
+		for (int i = 0; i < keys.length; i++)
+			for (int c = 0; c < 2; c++)
+				if (i * 2 + c != cell && keys[i][c] == code)
+					return (c + 1) + "p " + Settings.ACTIONS[i];
+		return GameKeys.reservedUse(code);
 	}
 
 	private void save() {
@@ -162,6 +183,7 @@ class SettingsScreen extends DesignPanel {
 		grid = Settings.DEFAULT_GRID;
 		keys = Settings.copy(Settings.DEFAULT_KEYS);
 		waiting = -1;
+		warning = null;
 		repaint();
 	}
 
@@ -244,14 +266,17 @@ class SettingsScreen extends DesignPanel {
 			text(g, Settings.ACTIONS[i], KEY_LABEL_X, KEY_TOP + i * KEY_STEP + KEY_LABEL_DROP,
 					ROW_SIZE, Ui.CREAM);
 			for (int c = 0; c < 2; c++)
-				keyCell(g, keyBox(i, c), KeyEvent.getKeyText(keys[i][c]), waiting == i * 2 + c);
+				keyCell(g, keyBox(i, c), GameKeys.keyName(keys[i][c]), waiting == i * 2 + c);
 		}
 
 		// 일시 정지는 Esc 고정이라 두 열 가운데에 한 칸만 둔다
 		text(g, "일시 정지", KEY_LABEL_X, PAUSE_KEY.y + KEY_LABEL_DROP, ROW_SIZE, Ui.CREAM);
 		keyCell(g, PAUSE_KEY, "Esc", false);
 
-		text(g, "바꿀 키를 선택한 뒤 새 키를 누르세요", HINT_X, HINT_TOP, HINT_SIZE, DIM_CREAM);
+		if (warning != null)
+			text(g, warning, HINT_X, HINT_TOP, HINT_SIZE, Ui.CREAM);
+		else
+			text(g, "바꿀 키를 선택한 뒤 새 키를 누르세요", HINT_X, HINT_TOP, HINT_SIZE, DIM_CREAM);
 	}
 
 	/** 키 한 칸. 새 키를 기다리는 칸은 크림색으로 채워서 표시한다. */

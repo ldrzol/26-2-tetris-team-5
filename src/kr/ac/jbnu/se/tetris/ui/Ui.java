@@ -3,7 +3,6 @@ package kr.ac.jbnu.se.tetris.ui;
 import kr.ac.jbnu.se.tetris.Resources;
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.GraphicsEnvironment;
 import java.awt.event.ActionEvent;
 import java.io.InputStream;
 
@@ -20,7 +19,7 @@ final class Ui {
 	/** 프로젝트에 같이 넣을 폰트 파일. 이 중에 있는 걸 먼저 쓴다. */
 	private static final String[] FONT_FILES = { "font/NeoDunggeunmoPro-Regular.ttf" };
 
-	/** 파일이 없을 때 찾아볼, 이 컴퓨터에 설치된 폰트 이름. (Ui.main 으로 정확한 이름 확인) */
+	/** 파일이 없을 때 찾아볼, 이 컴퓨터에 설치된 폰트 이름. */
 	private static final String SYSTEM_FONT_NAME = "산돌구름체";
 
 	private static final Font BASE = loadFont();
@@ -71,11 +70,5 @@ final class Ui {
 				action.run();
 			}
 		});
-	}
-
-	/** 이 컴퓨터에 깔린 폰트 이름을 전부 출력한다. SYSTEM_FONT_NAME 에 적을 값을 여기서 찾는다. */
-	public static void main(String[] args) {
-		for (String name : GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())
-			System.out.println(name);
 	}
 }

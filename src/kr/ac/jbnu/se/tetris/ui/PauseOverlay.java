@@ -30,11 +30,19 @@ class PauseOverlay extends DesignPanel {
 
 	private static final String[] ITEMS = { "계속하기", "다시하기", "나가기", "환경설정" };
 
+	/** 상자 아래 조작키 목록 */
+	private static final int KEYS_TOP = 1120;
+	private static final int KEYS_STEP = 42;
+	private static final int KEYS_PAD = 14;
+	private static final float KEYS_SIZE = 26f;
+
 	private final Runnable[] actions;
+	private final String[] keyLines;
 	private int selected = 0;
 
-	PauseOverlay(Runnable onResume, Runnable onRetry, Runnable onExit, Runnable onSettings) {
+	PauseOverlay(Runnable onResume, Runnable onRetry, Runnable onExit, Runnable onSettings, String[] keyLines) {
 		this.actions = new Runnable[] { onResume, onRetry, onExit, onSettings };
+		this.keyLines = keyLines;
 		setOpaque(false);   // 뒤 게임 화면이 비쳐야 한다
 
 		Ui.bind(this, KeyEvent.VK_UP, "pauseUp", () -> move(-1));
@@ -69,5 +77,10 @@ class PauseOverlay extends DesignPanel {
 
 		drawImage(g, ARROW_ICON,
 				new Rectangle(ARROW.x, ARROW.y + selected * ITEM_GAP, ARROW.width, ARROW.height));
+
+		// 뒤 화면 글자와 섞이지 않게 바탕을 깐다
+		fill(g, new Rectangle(0, KEYS_TOP - KEYS_PAD, DESIGN_W, keyLines.length * KEYS_STEP + KEYS_PAD * 2), Ui.BG);
+		for (int i = 0; i < keyLines.length; i++)
+			textCentered(g, keyLines[i], KEYS_TOP + i * KEYS_STEP, KEYS_SIZE, Ui.CREAM, 0);
 	}
 }
