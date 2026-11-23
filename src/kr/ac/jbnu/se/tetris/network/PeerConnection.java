@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.function.Consumer;
 
@@ -19,6 +20,8 @@ public class PeerConnection {
 	private final ObjectOutputStream out;
 	private final ObjectInputStream in;
 	private volatile Consumer<Object> listener;
+	/** 접속을 기다리는 최대 시간. 이보다 오래 걸리면 실패로 본다. */
+	private static final int CONNECT_TIMEOUT_MS = 5000;
 
 	/** 방을 열고 상대가 들어올 때까지 기다린다. 들어오면 대기용 소켓은 닫는다. */
 	public static PeerConnection host(int port, Consumer<Object> listener) throws IOException {
@@ -29,7 +32,14 @@ public class PeerConnection {
 
 	/** 열려 있는 방에 들어간다. */
 	public static PeerConnection connect(String ip, int port, Consumer<Object> listener) throws IOException {
-		return listening(new Socket(ip, port), listener);
+		Socket socket = new Socket();
+		try {
+			socket.connect(new InetSocketAddress(ip, port), CONNECT_TIMEOUT_MS);
+			return listening(socket, listener);
+		} catch (IOException e) {
+			socket.close();   // 실패하면 만든 소켓을 닫고 실패를 그대로 알린다
+			throw e;
+		}
 	}
 
 	private static PeerConnection listening(Socket socket, Consumer<Object> listener) throws IOException {
