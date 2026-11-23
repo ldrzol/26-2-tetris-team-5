@@ -159,27 +159,25 @@ public class SharedGame implements SharedState {
         }
         player.score += clearLines();
 
-        int other = 1 - p;
-        if (overlapsCells(players[other])) {
-            spawn(other);
-        }
+        // [버그 13] 상대 블록이 방금 쌓인 칸과 겹치면, 예전에는 상대 블록을 지우고 새로 냈다(블록이 사라짐).
+        // 이제는 지우지 않고 겹치지 않는 곳까지 위로 올린다.
+        keepOutOfCells(1 - p);
         spawn(p);
     }
 
-    private boolean overlapsCells(Player player) {
+    /** [버그 13] 상대 블록이 쌓인 칸과 겹치면 겹치지 않을 때까지 위로 올린다. 올릴 곳이 없으면 그때만 새로 낸다. */
+    private void keepOutOfCells(int p) {
+        Player player = players[p];
         if (player.shape.getShape() == Tetrominoes.NoShape) {
-            return false;
+            return;
         }
-        for (int i = 0; i < PIECE_CELLS; i++) {
-            int x = player.x + player.shape.x(i);
-            int y = player.y - player.shape.y(i);
-            if (cells[y * WIDTH + x] != Tetrominoes.NoShape) {
-                return true;
-            }
+        while (!canPlace(player.shape, player.x, player.y) && player.y < HEIGHT) {
+            player.y++;
         }
-        return false;
+        if (!canPlace(player.shape, player.x, player.y)) {
+            spawn(p);
+        }
     }
-
     private int clearLines() {
         int cleared = 0;
         int y = 0;
