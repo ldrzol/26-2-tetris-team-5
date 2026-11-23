@@ -36,6 +36,8 @@ public class LobbyService {
     private static final String ACCEPT = "ACCEPT";
     private static final String DECLINE = "DECLINE";
     private static final String MODE = "MODE:";
+    private static final String START = "START";
+    private static final String CANCEL = "CANCEL";
 
     private final Listener listener;
     private PeerConnection connection;
@@ -115,8 +117,8 @@ public class LobbyService {
     private void handleText(String text) {
         if (host)
             handleAsHost(text);
-        else if (text.startsWith(MODE))
-            handleOffer(text);
+        else
+            handleAsGuest(text);
     }
 
     private void handleAsHost(String text) {
@@ -124,27 +126,59 @@ public class LobbyService {
             connection.send(MODE + gameMode.name() + ":" + fee);
             listener.onStatus("참가비 " + fee + " 코인 - 상대의 확인을 기다리는 중...");
         } else if (text.equals(ACCEPT)) {
+            // 기다리는 동안 내 코인이 줄었을 수 있으니 시작 직전에 다시 확인한다
+            if (Wallet.coins() < fee) {
+                connection.send(CANCEL);
+                cancel("내 코인이 부족해서 취소되었습니다");
+                return;
+            }
             Wallet.addCoins(-fee);
+            connection.send(START);
             listener.onStart(connection, host, gameMode, fee);
         } else if (text.equals(DECLINE)) {
             cancel("상대의 코인이 부족해서 취소되었습니다");
         }
     }
 
-    /** 방장이 보낸 "MODE:<모드>:<참가비>" 를 받아 수락하거나 거절한다. */
-    private void handleOffer(String text) {
-        String[] parts = text.split(":");
-        gameMode = GameMode.valueOf(parts[1]);
-        fee = Integer.parseInt(parts[2]);
+    private void handleAsGuest(String text) {
+        if (text.startsWith(MODE)) {
+            handleOffer(text);
+        } else if (text.equals(START)) {
+            Wallet.addCoins(-fee);
+            listener.onStart(connection, host, gameMode, fee);
+        } else if (text.equals(CANCEL)) {
+            cancel("방장의 코인이 부족해서 취소되었습니다");
+        }
+    }
 
+    /** 방장이 보낸 "MODE:<모드>:<참가비>" 를 받아 수락하거나 거절한다. 코인은 방장이 START 를 보낸 뒤에 낸다. */
+    private void handleOffer(String text) {
+        if (!readOffer(text)) {
+            cancel("방장이 보낸 정보가 올바르지 않아 취소되었습니다");
+            return;
+        }
         if (Wallet.coins() < fee) {
             connection.send(DECLINE);
             cancel("코인이 부족합니다 (참가비 " + fee + ")");
             return;
         }
-        Wallet.addCoins(-fee);
         connection.send(ACCEPT);
-        listener.onStart(connection, host, gameMode, fee);
+        listener.onStatus("참가비 " + fee + " 코인 - 방장이 시작하기를 기다리는 중...");
+    }
+
+    /** "MODE:<모드>:<참가비>" 를 읽어 gameMode, fee 에 넣는다. 형식이 틀리면 false. */
+    private boolean readOffer(String text) {
+        String[] parts = text.split(":");
+        if (parts.length != 3) {
+            return false;
+        }
+        try {
+            gameMode = GameMode.valueOf(parts[1]);
+            fee = Integer.parseInt(parts[2]);
+        } catch (IllegalArgumentException e) {   // 숫자가 아닐 때 나는 NumberFormatException 도 여기에 포함
+            return false;
+        }
+        return fee >= MIN_FEE;
     }
 
     private void cancel(String message) {
