@@ -10,23 +10,25 @@ import java.util.Arrays;
  * 기대값은 같은 판을 tetris.py 의 get_state_properties 에 넣어서 얻은 값이다.
  */
 public class BoardFeaturesSelfCheck {
+    /** 꽉 찬 한 줄. */
+    private static final String FULL = "##########";
 
     public static void main(String[] args) {
         check("빈 판", new String[] {}, 0, 0, 0, 0);
         check("한 줄 지움", new String[] {
                 ".#........",
                 "##.#######",
-                "##########" }, 1, 0, 4, 10);
+                FULL }, 1, 0, 4, 10);
         check("가운데 줄 지움", new String[] {
                 "#.........",
                 "#.#.......",
-                "##########",
+                FULL,
                 "#.##.#####" }, 1, 0, 8, 11);
         check("두 줄 지움 + 구멍", new String[] {
                 "..#.......",
-                "##########",
+                FULL,
                 "#.#.#.#.#.",
-                "##########",
+                FULL,
                 ".#########" }, 2, 1, 11, 16);
         System.out.println("BoardFeaturesSelfCheck: 통과");
     }

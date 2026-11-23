@@ -84,9 +84,9 @@ public class LobbyService {
         cancelled = false;
 
         new Thread(() -> {
-            try {
-                waiting = new ServerSocket(PORT);
-                connection = PeerConnection.host(waiting, this::onMessage);
+            try (ServerSocket server = new ServerSocket(PORT)) {
+                waiting = server;
+                connection = PeerConnection.host(server, this::onMessage);
                 SwingUtilities.invokeLater(() -> onConnected("상대가 들어왔습니다"));
             } catch (IOException e) {
                 String text = cancelled ? "방 만들기를 취소했습니다" : "방 만들기 실패: " + e.getMessage();
