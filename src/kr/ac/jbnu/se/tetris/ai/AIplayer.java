@@ -80,6 +80,8 @@ public class AIplayer {
         lastY = game.getCurY();
 
         if (plan == null && !makePlan(game.getCurPiece())) {
+            dropHere();   // 놓을 곳이 없으면 멈춰 있지 말고 떨어뜨려서 다음 블록으로 넘어간다
+            view.repaint();
             return;
         }
         doOneAction();
@@ -100,21 +102,34 @@ public class AIplayer {
         return true;
     }
 
-    /** 계획대로 한 동작만 한다: 회전 -> 좌우 이동 -> 내리기. */
+    /** 계획대로 한 동작만 한다: 회전 -> 좌우 이동 -> 내리기. 막히면 포기하고 다음으로 넘어간다. */
     private void doOneAction() {
         if (rotationsLeft > 0) {
             if (game.rotateRight()) {
                 rotationsLeft--;
+            } else {
+                rotationsLeft = 0;   // 돌릴 수 없으면(막혔거나 회전 금지 기믹) 회전은 포기하고 이동으로 넘어간다
             }
-        } else if (game.getCurX() < plan.x) {
-            game.moveRight();
-        } else if (game.getCurX() > plan.x) {
-            game.moveLeft();
+        } else if (game.getCurX() != plan.x) {
+            if (!moveToward(plan.x)) {
+                dropHere();          // 가는 길이 막혔으면 지금 자리에 떨어뜨린다
+            }
         } else if (Math.random() < hardDropChance) {
-            game.hardDrop();
-            plan = null;
+            dropHere();
         } else {
             game.moveDown();
         }
+    }
+
+    /** 목표 열 쪽으로 한 칸 옮긴다. 못 옮기면 false. */
+    private boolean moveToward(int targetX) {
+        return game.getCurX() < targetX ? game.moveRight() : game.moveLeft();
+    }
+
+    /** 지금 자리에 바로 떨어뜨리고 계획을 버린다. */
+    private void dropHere() {
+        game.hardDrop();
+        plan = null;
+
     }
 }
