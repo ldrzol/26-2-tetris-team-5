@@ -2,6 +2,7 @@ package kr.ac.jbnu.se.tetris.network;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.ServerSocket;
 
 import javax.swing.SwingUtilities;
 
@@ -50,6 +51,12 @@ public class LobbyService {
 
     private int fee;
 
+    /** 방장이 상대를 기다리는 동안의 대기 소켓. 대기를 취소할 때 닫는다. */
+    private volatile ServerSocket waiting;
+
+    /** 사용자가 취소했는지. 취소로 멈춘 건 "실패"가 아니라 "취소"로 알린다. */
+    private volatile boolean cancelled = false;
+
     public LobbyService(Listener listener) {
         this.listener = listener;
     }
@@ -74,15 +81,38 @@ public class LobbyService {
         this.host = true;
         this.gameMode = gameMode;
         this.fee = fee;
+        cancelled = false;
 
         new Thread(() -> {
             try {
-                connection = PeerConnection.host(PORT, this::onMessage);
+                waiting = new ServerSocket(PORT);
+                connection = PeerConnection.host(waiting, this::onMessage);
                 SwingUtilities.invokeLater(() -> onConnected("상대가 들어왔습니다"));
             } catch (IOException e) {
-                SwingUtilities.invokeLater(() -> listener.onFailed("방 만들기 실패: " + e.getMessage()));
+                String text = cancelled ? "방 만들기를 취소했습니다" : "방 만들기 실패: " + e.getMessage();
+                SwingUtilities.invokeLater(() -> listener.onFailed(text));
+            } finally {
+                waiting = null;
             }
         }).start();
+    }
+
+    /**
+     * 사용자가 취소를 눌렀을 때 (취소 버튼은 화면 쪽에서 부른다).
+     * 상대를 기다리는 중이면 대기를 멈추고, 이미 연결됐으면 연결을 끊는다.
+     */
+    public void cancelByUser() {
+        cancelled = true;
+        ServerSocket server = waiting;
+        if (server != null) {
+            try {
+                server.close();   // accept() 가 IOException 으로 멈추고, 위 catch 에서 "취소했습니다"를 알린다
+            } catch (IOException ignored) {
+                // 이미 닫혀 있다
+            }
+        } else if (connection != null) {
+            cancel("취소했습니다");
+        }
     }
 
     public void joinRoom(String ip) {

@@ -28,10 +28,13 @@ public class PeerConnection {
 	/** 내가 close() 로 닫았는지. 내가 닫은 건 끊김으로 알리지 않는다. */
 	private volatile boolean closed = false;
 
-	/** 방을 열고 상대가 들어올 때까지 기다린다. 들어오면 대기용 소켓은 닫는다. */
-	public static PeerConnection host(int port, Consumer<Object> listener) throws IOException {
-		try (ServerSocket server = new ServerSocket(port)) {
-			return listening(server.accept(), listener);
+	/**
+	 * 열어 둔 대기 소켓으로 상대가 들어올 때까지 기다린다. 들어오면 대기 소켓은 닫는다.
+	 * 기다리는 동안 다른 스레드에서 server.close() 를 부르면 대기가 취소된다 (IOException).
+	 */
+	public static PeerConnection host(ServerSocket server, Consumer<Object> listener) throws IOException {
+		try (ServerSocket waiting = server) {
+			return listening(waiting.accept(), listener);
 		}
 	}
 
