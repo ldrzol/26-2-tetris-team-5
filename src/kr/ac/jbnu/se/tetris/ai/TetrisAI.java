@@ -5,6 +5,9 @@ import kr.ac.jbnu.se.tetris.game.Shape;
 import kr.ac.jbnu.se.tetris.game.Tetrominoes;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class TetrisAI {
 
@@ -38,12 +41,16 @@ public class TetrisAI {
         int height = GameBoard.HEIGHT;
         Move bestMove = null;
         double bestScore = Double.NEGATIVE_INFINITY;
+        Set<String> tried = new HashSet<>();   // 이미 시험한 자리 (O 블록처럼 돌려도 같은 모양이면 자리가 겹친다)
         Shape shape = piece;
         for (int rotation = 0; rotation < 4; rotation++) {
             for (int curX = 0; curX < width; curX++) {
                 int landingY = findLandingY(board, shape, curX);
                 if (landingY == -1) {
                     continue;
+                }
+                if (!tried.add(placementKey(shape, curX, landingY))) {
+                    continue;   // 다른 회전으로 이미 시험한 것과 똑같은 자리
                 }
                 Tetrominoes[] simulated = simulatePlace(board, shape, curX, landingY);
                 double score = evaluator.score(simulated, width, height);
@@ -55,6 +62,16 @@ public class TetrisAI {
             shape = shape.rotateRight();
         }
         return bestMove;
+    }
+
+    /** 블록이 놓일 칸 번호들을 정렬해서 글자로 만든다. 칸이 같으면 같은 글자가 된다. */
+    private String placementKey(Shape shape, int curX, int landingY) {
+        int[] cells = new int[shape.size()];
+        for (int i = 0; i < shape.size(); i++) {
+            cells[i] = (landingY - shape.y(i)) * GameBoard.WIDTH + (curX + shape.x(i));
+        }
+        Arrays.sort(cells);
+        return Arrays.toString(cells);
     }
 
     public Move findRandomMove(GameBoard board, Shape piece) {
