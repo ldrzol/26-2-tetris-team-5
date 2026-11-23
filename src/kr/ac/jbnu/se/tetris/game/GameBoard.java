@@ -1,10 +1,7 @@
 package kr.ac.jbnu.se.tetris.game;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.List;
 import java.util.Random;
 
@@ -17,41 +14,23 @@ public class GameBoard {
 
     public static final int COLOR_COUNT = 7;   // 블록 색 가짓수 (Board.PALETTE 와 같아야 함)
 
-    protected final Tetrominoes[][] cells = new Tetrominoes[HEIGHT][WIDTH]; // 쌓여 있는 블록들
-    protected final int[][] colorIds = new int[HEIGHT][WIDTH];              // cells 와 같은 자리의 색 번호
-    protected final int[][] age = new int[HEIGHT][WIDTH];                   // [기믹] 칸이 놓인 뒤 지난 초 (FADE 용)
+    private final Playfield field = new Playfield(WIDTH, HEIGHT);           // 쌓여 있는 블록들
     private final Gimmick gimmick = new Gimmick(this);                      // [기믹] 기믹 담당
     private final Random rng = new Random();
     private int curColor = 0;               // 지금 떨어지는 블록의 색 번호
 
     private Tetrominoes nextShape;          // 다음에 나올 블록
     private int nextColor;
-    private Tetrominoes holdShape = Tetrominoes.NoShape;   // 보관해 둔 블록 (없으면 NoShape)
-    private int holdColor;
-    private boolean holdLocked = false;     // 블록 하나당 홀드는 한 번만
+    private final HoldSlot holdSlot = new HoldSlot();   // 보관함
     private Shape curPiece = new Shape();   // 현재 조작 중인 블록
     private int curX = 0;                   // 현재 블록 기준점 x
     private int curY = 0;                   // 현재 블록 기준점 y
-    private int linesRemoved = 0;           // 지운 줄 수
     private boolean gameOver = false;        // 게임 오버 여부
-    private boolean levelProgression = true;   // false 면 레벨이 1로 고정된다
     private boolean spawnPending = false;   // 줄이 지워져서 새 블록을 다음 틱에 만들어야 하는 상태
     private final List<Integer> flashRows = new ArrayList<>(); // 깜빡이는 중인(곧 지워질) 줄들
-    private final Random rand = new Random();
-    private static final int QUEUE_MIN = 7;
-    private final Deque<Tetrominoes> queue = new ArrayDeque<>();
+    private final PieceQueue pieceQueue = new PieceQueue();   // 7bag 큐
 
-    // ---- 점수 ----
-    private static final int[] LINE_POINTS    = { 0, 100, 300, 500, 800 };    // 지운 줄 수별 기본 점수 (x 레벨)
-    private static final int[] PERFECT_POINTS = { 0, 800, 1200, 1800, 2000 }; // 퍼펙트 클리어 보너스 (x 레벨)
-    private static final int COMBO_POINTS = 50;                               // 콤보 보너스 (x 콤보 x 레벨)
-    private int score = 0;
-    private int combo = -1;                 // 연속으로 줄을 지운 횟수 (-1: 연속 아님)
-
-    // ---- 피버 ----
-    /** 이 콤보부터 피버가 터진다. 한 번에 4줄(테트리스)로도 터진다. */
-    public static final int FEVER_COMBO = 4;
-    private boolean feverPending = false;   // 조건을 채웠고 아직 화면이 가져가지 않은 상태
+    private final ScoreKeeper scoreKeeper = new ScoreKeeper();   // 점수·콤보·레벨·피버
 
     public GameBoard() {
         reset();
@@ -62,90 +41,48 @@ public class GameBoard {
         return gimmick;
     }
 
-    /** 레벨 상한. 가이드라인 마라톤과 같게 15에서 멈춘다. */
-    public static final int MAX_LEVEL = 15;
+    /** 레벨 상한. */
+    public static final int MAX_LEVEL = ScoreKeeper.MAX_LEVEL;
 
-    /**
-     * 레벨 n 을 끝내는 데 필요한 '누적' 점수.
-     *
-     * 가이드라인은 레벨당 10줄이고 한 줄(싱글) 점수가 100 x 레벨이므로,
-     * 레벨 n 을 깨는 데 드는 점수는 1000 x n 이다. 그것을 누적하면
-     * 500 x n x (n+1) 이 된다. (1000, 3000, 6000, 10000, 15000 ...)
-     */
+    /** 이 콤보부터 피버가 터진다. */
+    public static final int FEVER_COMBO = ScoreKeeper.FEVER_COMBO;
+
     public static int levelGoal(int level) {
-        return 500 * level * (level + 1);
+        return ScoreKeeper.levelGoal(level);
     }
 
-    /** 현재 레벨. 점수가 levelGoal 을 넘을 때마다 오른다. 레벨 올리기를 껐으면 늘 1이다. */
+    /** 현재 레벨. */
     public int getLevel() {
-        if (!levelProgression)
-            return 1;
-        int level = 1;
-        while (level < MAX_LEVEL && score >= levelGoal(level))
-            level++;
-        return level;
+        return scoreKeeper.level();
     }
 
     /**
      * 레벨 클리어 뒤: 쌓인 블록만 지우고 점수·레벨·줄 수는 그대로 이어 간다.
      */
     public void clearStack() {
-        for (int i = 0; i < HEIGHT; ++i) {
-            Arrays.fill(cells[i], Tetrominoes.NoShape);
-            Arrays.fill(colorIds[i], 0);
-            Arrays.fill(age[i], 0);
-        }
+        field.clear();
         flashRows.clear();
-        combo = -1;
-        feverPending = false;
+        scoreKeeper.resetStreak();
         spawnPending = false;
         spawn();
     }
 
     /** 2인 대전처럼 레벨이 오르면 안 되는 판에서는 false 로 끈다. */
     public void setLevelProgression(boolean on) {
-        levelProgression = on;
+        scoreKeeper.setLevelProgression(on);
     }
     /** 보드를 비우고 상태를 초기화한다. (첫 블록은 spawn()으로 따로 만든다) */
     public void reset() {
-        for (int i = 0; i < HEIGHT; ++i){
-            Arrays.fill(cells[i],Tetrominoes.NoShape);
-            Arrays.fill(colorIds[i],0);
-            Arrays.fill(age[i],0);              // [기믹]
-        }
+        field.clear();
         curPiece.setShape(Tetrominoes.NoShape);
-        holdShape = Tetrominoes.NoShape;
-        holdLocked = false;
-        linesRemoved = 0;
+        holdSlot.clear();
         gameOver = false;
         spawnPending = false;
         flashRows.clear();
-        queue.clear();
+        pieceQueue.clear();
         gimmick.clear();                        // [기믹]
-        score = 0;
-        combo = -1;
-        feverPending = false;
+        scoreKeeper.reset();
         rollNext();
-    }
-
-    private void refillQueue(){
-        while(queue.size()<QUEUE_MIN){
-            List<Tetrominoes> bag = new ArrayList<>();
-            for(Tetrominoes t: Tetrominoes.values()){
-                if(t!=Tetrominoes.NoShape && t!=Tetrominoes.GarbageShape){
-                    bag.add(t);
-                }
-            }
-            Collections.shuffle(bag, rand);
-            queue.addAll(bag);
-        }
-    }
-
-    private Tetrominoes nextFromQueue(){
-        refillQueue();
-        Tetrominoes next = queue.pollFirst();
-        refillQueue();
-        return next;
     }
 
     private long spawnedAtMs = 0;   // 현재 블록이 나온 시각
@@ -175,7 +112,7 @@ public class GameBoard {
         Tetrominoes shape = nextShape;
         int color = nextColor;
         rollNext();
-        holdLocked = false;        // 새 블록이 나왔으니 홀드를 다시 쓸 수 있다
+        holdSlot.unlock();         // 새 블록이 나왔으니 홀드를 다시 쓸 수 있다
         return place(shape, color);
     }
 
@@ -213,7 +150,7 @@ public class GameBoard {
     /** 덩어리에 같이 붙일 블록을 큐에서 하나 더 꺼낸다. (2개 동시이므로 큐도 두 개를 쓴다) */
     private Shape nextPieceShape() {
         Shape other = new Shape();
-        other.setShape(nextFromQueue());
+        other.setShape(pieceQueue.next());
         return other;
     }
 
@@ -249,7 +186,7 @@ public class GameBoard {
 
     /** 다음 블록을 7bag 큐에서 꺼낸다. 색은 따로 무작위로 고른다. */
     private void rollNext() {
-        nextShape = nextFromQueue();
+        nextShape = pieceQueue.next();
         nextColor = rng.nextInt(COLOR_COUNT);
     }
 
@@ -258,7 +195,7 @@ public class GameBoard {
      * 다음 블록을 대신 꺼낸다. 블록 하나당 한 번만 쓸 수 있다.
      */
     public boolean hold() {
-        if (holdLocked || gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape)
+        if (holdSlot.isLocked() || gameOver || isClearing() || curPiece.getShape() == Tetrominoes.NoShape)
             return false;
         if (gimmick.blocksSpawn())   // [아이템] 막혀 있는 동안은 홀드로도 새 블록을 꺼낼 수 없다
             return false;
@@ -266,14 +203,12 @@ public class GameBoard {
         Tetrominoes keptShape = curPiece.getShape();
         int keptColor = curColor;
 
-        if (holdShape == Tetrominoes.NoShape)
+        if (holdSlot.isEmpty())
             spawn();
         else
-            place(holdShape, holdColor);
+            place(holdSlot.shape(), holdSlot.color());
 
-        holdShape = keptShape;
-        holdColor = keptColor;
-        holdLocked = true;         // spawn() 이 풀어 놓은 것을 다시 잠근다
+        holdSlot.store(keptShape, keptColor);   // spawn() 이 풀어 놓은 것을 다시 잠근다
         return true;
     }
 
@@ -336,10 +271,10 @@ public class GameBoard {
     }
 
     public void hardDrop() {
-        int cells = 0;
+        int dropped = 0;
         while (moveDown())
-            cells++;
-        gain(cells * 2);                        // 하드 드롭: 떨어뜨린 칸마다 2점
+            dropped++;
+        gain(dropped * 2);                        // 하드 드롭: 떨어뜨린 칸마다 2점
         lockPiece();
     }
 
@@ -347,7 +282,7 @@ public class GameBoard {
 
     /** 쌓여 있는 칸의 색 번호. */
     public int colorAt(int x, int y) {
-        return colorIds[y][x];
+        return field.colorAt(x, y);
     }
 
     /** 지금 떨어지는 블록의 색 번호. */
@@ -356,7 +291,7 @@ public class GameBoard {
     }
 
     public Tetrominoes shapeAt(int x, int y) {
-        return cells[y][x];
+        return field.shapeAt(x, y);
     }
 
     /** AI 가 판을 읽을 때 쓴다. */
@@ -382,12 +317,7 @@ public class GameBoard {
      * 상대에게 보낼 화면을 만들 때 쓴다. 두 배열은 WIDTH * HEIGHT 길이여야 한다.
      */
     public void writeVisible(Tetrominoes[] shapes, int[] colors) {
-        for (int y = 0; y < HEIGHT; y++) {
-            for (int x = 0; x < WIDTH; x++) {
-                shapes[y * WIDTH + x] = cells[y][x];
-                colors[y * WIDTH + x] = colorIds[y][x];
-            }
-        }
+        field.writeTo(shapes, colors);
         if (curPiece.getShape() == Tetrominoes.NoShape)
             return;
         for (int i = 0; i < curPiece.size(); i++) {
@@ -406,12 +336,7 @@ public class GameBoard {
      * 떨어지는 블록은 이미 칸에 찍혀서 오므로, 조작 블록을 비워 둬야 고스트가 안 그려진다.
      */
     public void applyRemoteState(Tetrominoes[] shapes, int[] colors) {
-        for (int y = 0; y < HEIGHT; y++) {
-            for (int x = 0; x < WIDTH; x++) {
-                cells[y][x] = shapes[y * WIDTH + x];
-                colorIds[y][x] = colors[y * WIDTH + x];
-            }
-        }
+        field.readFrom(shapes, colors);
         curPiece.setShape(Tetrominoes.NoShape);
         flashRows.clear();
     }
@@ -441,15 +366,15 @@ public class GameBoard {
 
     /** 보관해 둔 블록. 비어 있으면 NoShape. */
     public Tetrominoes holdType() {
-        return holdShape;
+        return holdSlot.shape();
     }
 
     public int getHoldColor() {
-        return holdColor;
+        return holdSlot.color();
     }
 
     public int getScore() {
-        return score;
+        return scoreKeeper.score();
     }
 
     /** 소프트 드롭처럼 바깥에서 점수를 더할 때 쓴다. */
@@ -459,7 +384,7 @@ public class GameBoard {
 
     /** [아이템] 점수 배수를 적용해서 더한다. 점수가 붙는 곳은 전부 여기를 거친다. */
     private void gain(int points) {
-        score += (int) Math.round(points * gimmick.scoreFactor());
+        scoreKeeper.add(points, gimmick.scoreFactor());
     }
 
     /**
@@ -468,9 +393,7 @@ public class GameBoard {
      * 판을 멈추고 블록을 고르게 하는 것은 화면 쪽 일이라 여기서는 신호만 세워 둔다.
      */
     public boolean takeFever() {
-        boolean on = feverPending;
-        feverPending = false;
-        return on;
+        return scoreKeeper.takeFever();
     }
 
     /** [피버] 다음에 나올 블록을 지정한다. 색은 늘 하던 대로 새로 뽑는다. */
@@ -481,11 +404,11 @@ public class GameBoard {
 
     /** 지금 이어지는 콤보. 0 이하면 콤보 표시 안 함. (첫 삭제 0, 두 번째 삭제부터 1) */
     public int getCombo() {
-        return combo;
+        return scoreKeeper.combo();
     }
 
     public int getLinesRemoved() {
-        return linesRemoved;
+        return scoreKeeper.linesRemoved();
     }
 
     public boolean isGameOver() {
@@ -538,20 +461,18 @@ public class GameBoard {
         for (int i = 0; i < curPiece.size(); ++i) {
             int x = curX + curPiece.x(i);
             int y = curY - curPiece.y(i);
-            cells[y][x] = curPiece.getShape();
-            colorIds[y][x] = curColor;
-            age[y][x] = 0;                      // [기믹] 새로 놓인 칸은 나이 0
+            field.set(x, y, curPiece.getShape(), curColor);   // 새로 놓인 칸은 나이 0
         }
         // 꽉 찬 줄은 바로 지우지 않고 기록만 해 둔다. (Board가 깜빡인 뒤 finishClear()를 호출)
         for (int i = 0; i < HEIGHT; ++i) {
-            if (isLineFull(i))
+            if (field.isRowFull(i))
                 flashRows.add(i);
         }
 
         if (isClearing()) {
             curPiece.setShape(Tetrominoes.NoShape);
         } else {
-            combo = -1;                         // 줄을 못 지웠으니 콤보가 끊긴다
+            scoreKeeper.breakCombo();           // 줄을 못 지웠으니 콤보가 끊긴다
             spawn();
         }
     }
@@ -559,54 +480,20 @@ public class GameBoard {
     /** 깜빡임이 끝난 뒤 호출. 기록해 둔 줄을 실제로 지우고, 새 블록은 다음 틱에 만든다. */
     public void finishClear() {
         int n = flashRows.size();
-        int level = getLevel();                                    // 줄을 더하기 전 레벨로 점수를 계산한다
-
         Collections.sort(flashRows, Collections.reverseOrder());   // 높은 줄부터 당겨야 아래 줄 번호가 안 밀린다
         for (int row : flashRows)
-            downLine(row);
-        linesRemoved += n;
+            field.removeRow(row);
         flashRows.clear();
         spawnPending = true;
 
-        int gained = LINE_POINTS[n] * level;                       // 줄 삭제
-        combo++;
-        gained += COMBO_POINTS * combo * level;                    // 콤보 (첫 삭제는 combo=0 이라 0점)
-        if (isBoardEmpty())
-            gained += PERFECT_POINTS[n] * level;                   // 퍼펙트 클리어
-        gain(gained);
-
-        // [피버] 테트리스(4줄)이거나 콤보가 막 기준에 닿았을 때. 콤보가 더 길어져도
-        // 다시 터지지 않게 '넘은' 것이 아니라 '닿은' 순간만 본다. 점수 배수가 이미
-        // 걸려 있으면(피버 중이거나 점수 2배 아이템을 썼으면) 겹치지 않게 건너뛴다.
-        if ((n == 4 || combo == FEVER_COMBO) && gimmick.scoreFactor() == 1.0)
-            feverPending = true;
-    }
-
-    private boolean isBoardEmpty() {
-        for (int y = 0; y < HEIGHT; y++)
-            for (int x = 0; x < WIDTH; x++)
-                if (cells[y][x] != Tetrominoes.NoShape)
-                    return false;
-        return true;
-    }
-
-    private boolean isLineFull(int row){
-        for (int j = 0; j < WIDTH; ++j) {
-            if (shapeAt(j, row)==Tetrominoes.NoShape){
-                return false;
-            }
-        }
-        return true;
+        scoreKeeper.lineCleared(n, field.isBoardEmpty(), gimmick.scoreFactor());
     }
 
     // ---- [기믹] Gimmick 이 쓰는 도우미 ----
 
     /** 쌓인 칸 하나를 지운다. 보드 밖이면 무시한다. */
     void eraseCell(int x, int y) {
-        if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
-        cells[y][x] = Tetrominoes.NoShape;
-        colorIds[y][x] = 0;
-        age[y][x] = 0;
+        field.erase(x, y);
     }
 
     /**
@@ -624,12 +511,7 @@ public class GameBoard {
 
     /** 블록이 쌓인 칸 중 하나를 무작위로 고른다. {x, y} 를 돌려주고, 하나도 없으면 null. */
     int[] randomStackedCell() {
-        List<int[]> filled = new ArrayList<>();
-        for (int y = 0; y < HEIGHT; y++)
-            for (int x = 0; x < WIDTH; x++)
-                if (cells[y][x] != Tetrominoes.NoShape)
-                    filled.add(new int[] { x, y });
-        return filled.isEmpty() ? null : filled.get(rng.nextInt(filled.size()));
+        return field.randomFilledCell(rng);
     }
 
     /** 줄이 한 칸 올라온 뒤 조작 중인 블록이 겹치면 한 칸 위로 올린다. 그래도 안 되면 게임 오버. */
@@ -639,27 +521,8 @@ public class GameBoard {
             gameOver = true;
     }
 
-    public void downLine(int row) {
-        for(int y = row;y<HEIGHT-1;y++){
-            cells[y]=cells[y+1];
-            colorIds[y]=colorIds[y+1];          // 색도 블록을 따라 내려와야 한다
-            age[y]=age[y+1];                    // [기믹] 나이도 같이
-        }
-        cells[HEIGHT-1]=new Tetrominoes[WIDTH];
-        Arrays.fill(cells[HEIGHT-1],Tetrominoes.NoShape);
-        colorIds[HEIGHT-1]=new int[WIDTH];
-        age[HEIGHT-1]=new int[WIDTH];           // [기믹]
-    }
-
-    public void upLine(int row) {
-        for(int y = HEIGHT-1;y>row;y--){
-            cells[y]=cells[y-1];
-            colorIds[y]=colorIds[y-1];          // 색도 블록을 따라 올라가야 한다
-            age[y]=age[y-1];                    // [기믹] 나이도 같이
-        }
-        cells[row]=new Tetrominoes[WIDTH];
-        Arrays.fill(cells[row],Tetrominoes.NoShape);
-        colorIds[row]=new int[WIDTH];
-        age[row]=new int[WIDTH];                // [기믹]
+    /** [기믹] 기믹이 판 칸을 다룰 때 쓴다. */
+    Playfield field() {
+        return field;
     }
 }
