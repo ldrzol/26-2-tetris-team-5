@@ -165,11 +165,17 @@ public class SharedHostFrame extends SharedFrame {
             case ROTATE:
                 game.rotateRight(p);
                 break;
+            case ROTATE_LEFT:
+                game.rotateLeft(p);
+                break;
             case DOWN:
                 game.moveDown(p);
                 break;
             case DROP:
                 game.hardDrop(p);
+                break;
+            case HOLD:
+                game.hold(p);
                 break;
         }
     }

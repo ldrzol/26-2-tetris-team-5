@@ -81,6 +81,8 @@ abstract class SharedFrame extends JFrame {
         bind(KeyEvent.VK_LEFT, "left", InputMessage.Action.LEFT);
         bind(KeyEvent.VK_RIGHT, "right", InputMessage.Action.RIGHT);
         bind(KeyEvent.VK_UP, "rotate", InputMessage.Action.ROTATE);
+        bind(KeyEvent.VK_Z, "rotateLeft", InputMessage.Action.ROTATE_LEFT);
+        bind(KeyEvent.VK_C, "hold", InputMessage.Action.HOLD);
         bind(KeyEvent.VK_DOWN, "down", InputMessage.Action.DOWN);
         bind(KeyEvent.VK_SPACE, "drop", InputMessage.Action.DROP);
     }
