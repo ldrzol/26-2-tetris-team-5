@@ -12,8 +12,6 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.EnumMap;
@@ -23,29 +21,16 @@ import javax.imageio.ImageIO;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.Timer;
 
-public class Board extends JPanel implements ActionListener {
+public class Board extends JPanel {
 
 	private final GameBoard game = new GameBoard();  // 게임 규칙 담당
-	private final Timer timer;                       // 블록을 주기적으로 떨어뜨리는 타이머
 	private final JLabel statusbar;                  // 이 보드 전용 상태바
 	private boolean isStarted = false;               // 게임 진행 중 여부
 	private boolean isPaused = false;   // 일시정지 여부
 
-	// [기믹] 낙하 속도: 레벨이 오를수록 간격이 줄고, SPEED_UP 기믹이 켜지면 추가로 빨라진다
-	private static final int BASE_DELAY = 400;
-	private static final int MIN_DELAY = 100;
-	private static final int DELAY_STEP_PER_LEVEL = 30;
-
-	// [기믹] 1초마다 기믹(블록 사라짐 등)을 갱신하는 타이머
-	private final Timer gimmickTimer = new Timer(1000, e -> onGimmickSecond());
-
-	// [기믹] INVISIBLE 이 첫 1초 뒤 정확히 사라지도록 짧은 간격으로 다시 그린다
-	private final Timer visibilityTimer = new Timer(100, e -> {
-		// 기믹이 켜져 있을 때만 다시 그린다. 평소에는 불필요한 전체 다시 그리기가 깜빡임을 만든다.
-		if (isStarted && !isPaused && !game.getGimmick().activeIcons().isEmpty()) repaint();
-	});
+	// 낙하, 기믹 1초, 숨김 기믹 다시 그리기 타이머
+	private final GameClock clock = new GameClock(this::onFallTick, this::onGimmickSecond, this::onVisibilityTick);
 
 	private final LineClearEffect flash;             // [flash] 줄 삭제 깜빡임 효과
 
@@ -63,23 +48,23 @@ public class Board extends JPanel implements ActionListener {
 	// [다방향] 그릴 때 돌리는 횟수(90도 단위). 0 이면 보통 테트리스와 같다
 	private int turns = 0;
 
-	private static final int LOCK_DELAY = 500;
-	private static final int MAX_LOCK_RESETS = 15;
-	private final Timer lockTimer = new Timer(LOCK_DELAY, e -> onLockTimeout());
-	private int lockResets = 0;
+	private final LockDelay lockDelay = new LockDelay(this::onLockTimeout);
 
 	public Board(JLabel statusbar) {
 		this.statusbar = statusbar;
-		timer = new Timer(BASE_DELAY, this);   // 틱 간격은 afterAction()에서 레벨에 맞춰 조정
-		lockTimer.setRepeats(false);
 		flash = new LineClearEffect(game, () -> isPaused, this::repaint, this::afterAction);   // [flash]
 	}
 
 	/** 타이머가 호출. 게임 규칙의 한 틱을 진행한 뒤 화면을 갱신한다. */
-	public void actionPerformed(ActionEvent e) {
+	private void onFallTick() {
 		if (!isStarted || isPaused) return;
 		game.tick();
 		afterAction();
+	}
+
+	/** [기믹] INVISIBLE 이 첫 1초 뒤 정확히 사라지도록 짧은 간격으로 다시 그린다. 기믹이 켜져 있을 때만 그린다. */
+	private void onVisibilityTick() {
+		if (isStarted && !isPaused && !game.getGimmick().activeIcons().isEmpty()) repaint();
 	}
 
 	/** [기믹] 1초마다 호출. 일시정지 중이거나 게임이 안 돌면 무시한다. */
@@ -100,9 +85,7 @@ public class Board extends JPanel implements ActionListener {
 		lastLines = 0; lastLevel = 1; lastOver = false;   // [소리]
 		game.reset();                // reset() 안에서 기믹도 초기화된다
 		game.spawn();
-		timer.start();
-		gimmickTimer.restart();      // [기믹]
-		visibilityTimer.restart();
+		clock.startAll();
 		afterAction();
 	}
 
@@ -113,11 +96,11 @@ public class Board extends JPanel implements ActionListener {
 
 		isPaused = paused;
 		if (isPaused) {
-			timer.stop();
-			lockTimer.stop();
+			clock.pauseFall();
+			lockDelay.stop();
 			statusbar.setText("paused");
 		} else {
-			timer.start();
+			clock.resumeFall();
 			syncLock();
 			statusbar.setText(String.valueOf(game.getLinesRemoved()));
 		}
@@ -200,9 +183,7 @@ public class Board extends JPanel implements ActionListener {
 	private void afterAction() {
 		playStateSounds();
 		if (game.isGameOver()) {
-			timer.stop();
-			gimmickTimer.stop();     // [기믹]
-			visibilityTimer.stop();
+			clock.stopAll();
 			flash.stop();            // [flash]
 			clearLockState();
 			isStarted = false;
@@ -295,11 +276,8 @@ public class Board extends JPanel implements ActionListener {
 		Gimmick gm = game.getGimmick();
 		gm.applyLevel(game.getLevel());
 
-		int delay = Math.max(MIN_DELAY, BASE_DELAY - (game.getLevel() - 1) * DELAY_STEP_PER_LEVEL);
-		delay = Math.max(MIN_DELAY / 2, (int) (delay * gm.speedFactor()));
-		if (timer.getDelay() != delay) {
-			timer.setDelay(delay);
-		}
+		int delay = FallSpeed.delayFor(game.getLevel(), gm.speedFactor());
+		clock.setFallDelay(delay);
 	}
 
 	// 그리드는 칸 크기가 바뀔 때만 한 번 그려 두고, 매 프레임에는 그림 한 장만 찍는다.
@@ -535,8 +513,7 @@ public class Board extends JPanel implements ActionListener {
 	}
 
 	private void clearLockState() {
-		lockTimer.stop();
-		lockResets = 0;
+		lockDelay.clear();
 	}
 
 	private void onLockTimeout() {
@@ -550,22 +527,19 @@ public class Board extends JPanel implements ActionListener {
 	/** 바닥에 닿아 있으면 락 타이머를 돌리고, 떠 있으면 멈춘다. */
 	private void syncLock() {
 		if (!canControl()) {
-			lockTimer.stop();
+			lockDelay.stop();
 			return;
 		}
 		if (isGrounded()) {
-			if (!lockTimer.isRunning()) lockTimer.start();
+			lockDelay.start();
 		} else {
-			lockTimer.stop();
+			lockDelay.stop();
 		}
 	}
 
-	/** 바닥에서 움직이면 락딜레이를 다시 준다. 단 MAX_LOCK_RESETS 번까지만. */
+	/** 바닥에서 움직이면 락딜레이를 다시 준다. 단 LockDelay.reset 한도까지만. */
 	private void resetLock() {
-		if (lockTimer.isRunning() && lockResets < MAX_LOCK_RESETS) {
-			lockResets++;
-			lockTimer.restart();
-		}
+		lockDelay.reset();
 	}
 
 	public void onRepaint(Runnable action) {

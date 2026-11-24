@@ -325,17 +325,7 @@ class FadeBlocks implements GimmickEffect {
     @Override
     public void onSecond(GameBoard game) {
         if (game.isClearing()) return;   // 줄 삭제 깜빡임 중에는 건드리지 않는다
-        for (int y = 0; y < GameBoard.HEIGHT; y++) {
-            for (int x = 0; x < GameBoard.WIDTH; x++) {
-                Tetrominoes t = game.cells[y][x];
-                if (t == Tetrominoes.NoShape || t == Tetrominoes.GarbageShape) continue;
-                if (++game.age[y][x] >= FADE_LIFE_SECONDS) {
-                    game.cells[y][x] = Tetrominoes.NoShape;
-                    game.colorIds[y][x] = 0;
-                    game.age[y][x] = 0;
-                }
-            }
-        }
+        game.field().ageAndFade(FADE_LIFE_SECONDS);
     }
 }
 
@@ -504,10 +494,7 @@ class PlusLine implements GimmickEffect {
 
     private void addLine(GameBoard game) {
         int hole = rand.nextInt(GameBoard.WIDTH);
-        game.upLine(0);
-        for (int i = 0; i < GameBoard.WIDTH; i++) {
-            game.cells[0][i] = (i == hole) ? Tetrominoes.NoShape : Tetrominoes.GarbageShape;
-        }
+        game.field().insertGarbageRow(hole);
         game.liftPieceIfBlocked();   // 올라온 줄과 떨어지는 블록이 겹치면 블록을 위로 올린다
     }
 }
