@@ -11,7 +11,7 @@ public class AIplayer {
     public enum Level {
         EASY("쉬움", 0.05, 400, 0.2, "model/weights_easy.txt"),
         NORMAL("보통", 0.0, 300, 0.25, "model/weights_normal.txt"),
-        HARD("어려움", 0.0, 200, 0.3, NeuralNet.WEIGHTS);
+        HARD("어려움", 0.0, 80, 1.0, NeuralNet.WEIGHTS);
 
         private final String label;
         private final double mistakeRate;
@@ -107,9 +107,10 @@ public class AIplayer {
         if (rotationsLeft > 0) {
             if (game.rotateRight()) {
                 rotationsLeft--;
-            } else {
-                rotationsLeft = 0;   // 돌릴 수 없으면(막혔거나 회전 금지 기믹) 회전은 포기하고 이동으로 넘어간다
+            } else if (!game.moveDown()) {
+                rotationsLeft = 0;   // 내려갈 수도 없으면(바닥에 닿았거나 회전 금지 기믹) 그때 회전을 포기한다
             }
+            // 위가 좁아서 못 돌았으면 한 칸 내렸으니 다음 번에 다시 돌린다
         } else if (game.getCurX() != plan.x) {
             if (!moveToward(plan.x)) {
                 dropHere();          // 가는 길이 막혔으면 지금 자리에 떨어뜨린다
