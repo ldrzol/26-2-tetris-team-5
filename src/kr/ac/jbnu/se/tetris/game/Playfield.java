@@ -56,6 +56,29 @@ public class Playfield {
         return shapes[y][x] == Tetrominoes.NoShape;
     }
 
+    /** 블록이 (x0, y0) 에서 판 안에 들어오는지. 쌓인 블록은 보지 않는다. */
+    public boolean fitsInWalls(Shape piece, int x0, int y0) {
+        for (int i = 0; i < piece.size(); i++) {
+            if (!inBounds(x0 + piece.x(i), y0 - piece.y(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 블록을 (x0, y0) 에 놓을 수 있는지. 판 안이고 쌓인 블록과 안 겹쳐야 한다. */
+    public boolean canPlace(Shape piece, int x0, int y0) {
+        if (!fitsInWalls(piece, x0, y0)) {
+            return false;
+        }
+        for (int i = 0; i < piece.size(); i++) {
+            if (!isEmptyAt(x0 + piece.x(i), y0 - piece.y(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** 칸을 채운다. 새로 놓인 칸이므로 나이는 0이다. */
     public void set(int x, int y, Tetrominoes shape, int color) {
         shapes[y][x] = shape;
