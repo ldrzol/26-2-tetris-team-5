@@ -117,17 +117,7 @@ public class SharedGame implements SharedState {
     }
 
     private boolean canPlace(Shape shape, int px, int py) {
-        for (int i = 0; i < 4; i++) {
-            int x = px + shape.x(i);
-            int y = py - shape.y(i);
-            if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
-                return false;
-            }
-            if (!field.isEmptyAt(x, y)) {
-                return false;
-            }
-        }
-        return true;
+        return field.canPlace(shape, px, py);
     }
 
     private boolean spawn(int p) {

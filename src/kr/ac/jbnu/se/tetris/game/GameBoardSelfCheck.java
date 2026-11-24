@@ -28,6 +28,9 @@ public class GameBoardSelfCheck {
 		bombErasesRandomShape();
 		comboCountsStraightClears();
 		feverFiresOnceAndBoostsScore();
+		clearedRowDropsStackAbove();
+		rotationIsBlockedByStackAndWalls();
+		gimmickKeepsThreeAndIgnoresSameEffect();
 		System.out.println("GameBoardSelfCheck: 통과");
 	}
 
@@ -196,6 +199,8 @@ public class GameBoardSelfCheck {
 		check(g.replaceCurrentPiece(Tetrominoes.LineShape), "일자 블록으로 못 바꿈");
 
 		g.getGimmick().apply(Attack.NO_ROTATE);
+		for (int i = 0; i < 3; i++)
+			g.getGimmick().onSpawn();                // 블록 3개마다 1개씩 막으므로 3번째 블록에서 막힌다
 
 		int[] before = pieceCoords(g);
 		check(!g.rotateRight(), "회전 불가인데 플레이어 회전이 먹힘");
@@ -301,6 +306,71 @@ public class GameBoardSelfCheck {
 		int before = g.getScore();
 		g.addScore(100);
 		check(g.getScore() - before == 200, "피버 중인데 점수가 두 배가 아님: " + (g.getScore() - before));
+	}
+
+	/** 줄 삭제: 꽉 찬 줄이 사라지고, 그 위에 쌓인 블록이 한 칸 내려와야 한다. */
+	static void clearedRowDropsStackAbove() {
+		GameBoard g = new GameBoard();
+		g.spawn();
+		for (int x = 0; x < GameBoard.WIDTH; x++)
+			g.field().set(x, 0, Tetrominoes.SquareShape, 0);
+		g.field().set(0, 1, Tetrominoes.TShape, 3);      // 맨 아랫줄 바로 위에 표시용 블록
+		g.hardDrop();                                    // 놓는 순간 꽉 찬 줄에 깜빡임이 걸린다
+		check(g.isClearing(), "꽉 찬 줄이 있는데 깜빡임이 안 걸림");
+		g.finishClear();
+		check(!g.isClearing(), "줄을 지운 뒤에도 깜빡임이 남음");
+		check(g.getLinesRemoved() == 1, "지운 줄 수가 1이 아님: " + g.getLinesRemoved());
+		check(g.shapeAt(0, 0) == Tetrominoes.TShape && g.colorAt(0, 0) == 3,
+				"위에 있던 블록이 모양·색과 함께 내려오지 않음: " + g.shapeAt(0, 0));
+		check(g.shapeAt(1, 0) == Tetrominoes.NoShape, "지워진 줄의 다른 칸이 남아 있음");
+	}
+
+	/** 회전 충돌: 좁은 틈에서는 어느 쪽으로 밀어도 안 들어가므로 회전이 거절되고 블록은 그대로여야 한다. */
+	static void rotationIsBlockedByStackAndWalls() {
+		Playfield f = new Playfield(GameBoard.WIDTH, GameBoard.HEIGHT);
+		ActivePiece open = new ActivePiece();
+		open.begin(Tetrominoes.LineShape, 0);
+		open.moveToSpawn(f.width(), f.height());
+		check(open.rotateRight(f), "빈 판에서 회전이 안 됨");
+
+		for (int y = 0; y < 10; y++)
+			for (int x = 0; x < f.width(); x++)
+				if (x != 5)
+					f.set(x, y, Tetrominoes.SquareShape, 0);   // 5번 칸만 비운 좁은 틈
+		ActivePiece p = new ActivePiece();
+		p.begin(Tetrominoes.LineShape, 0);
+		p.moveToSpawn(f.width(), f.height());
+		check(p.move(f, -1, 0), "틈 위로 옮기지 못함");
+		while (p.move(f, 0, -1)) {
+			// 틈 바닥까지 내린다
+		}
+		int x = p.x();
+		int y = p.y();
+		check(x == 5 && y < 10, "틈 안으로 내려가지 못함: x=" + x + ", y=" + y);
+		check(!p.rotateRight(f) && !p.rotateLeft(f), "좁은 틈인데 회전이 됨");
+		check(p.x() == x && p.y() == y && p.type() == Tetrominoes.LineShape,
+				"회전이 거절됐는데 블록이 변함");
+	}
+
+	/** 기믹: 같은 효과는 한 번만 켜지고, 동시에 3개까지만 켜지며 넘으면 가장 오래된 것이 꺼진다. */
+	static void gimmickKeepsThreeAndIgnoresSameEffect() {
+		GameBoard g = new GameBoard();
+		Gimmick gm = g.getGimmick();
+
+		SpeedUp speed = new SpeedUp();
+		gm.add(speed);
+		gm.add(speed);
+		check(gm.speedFactor() == 0.5, "같은 기믹을 두 번 넣었는데 배수가 겹침: " + gm.speedFactor());
+
+		gm.add(new ScoreBoost());
+		gm.add(new TwinPieces());
+		check(gm.speedFactor() == 0.5 && gm.scoreFactor() == 2.0 && gm.doublesPiece(),
+				"3개까지는 모두 켜져 있어야 함");
+
+		gm.add(new ReverseKeys());                       // 4번째: 가장 오래된 SpeedUp 이 꺼진다
+		check(gm.speedFactor() == 1.0, "가득 찼는데 가장 오래된 기믹이 안 꺼짐");
+		check(gm.scoreFactor() == 2.0 && gm.doublesPiece()
+				&& gm.remap(Gimmick.Input.LEFT) == Gimmick.Input.RIGHT, "나중에 켠 기믹이 같이 꺼짐");
 	}
 
 	/** 맨 아랫줄을 꽉 채운다. 다음 블록을 놓으면 그 줄이 지워진다. */
