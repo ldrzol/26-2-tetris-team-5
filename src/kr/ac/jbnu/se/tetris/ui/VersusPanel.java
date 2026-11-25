@@ -23,6 +23,7 @@ import kr.ac.jbnu.se.tetris.ai.AIplayer;
 import kr.ac.jbnu.se.tetris.network.BoardStateMessage;
 import kr.ac.jbnu.se.tetris.network.ItemMessage;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
+import kr.ac.jbnu.se.tetris.network.MatchResult;
 
 /**
  * 대전 화면. Figma "리팩 - 2인 모드(두 화면)".
@@ -94,7 +95,7 @@ class VersusPanel extends DesignPanel {
 	private final Board rivalBoard = newBoard();
 
 	/** 네트워크 대전일 때만 연결이 있다. AI·로컬 대전은 null. */
-	private final PeerConnection connection;
+	private final transient PeerConnection connection;
 	private final int fee;
 
 	/** 손패. [0] = 왼쪽(나), [1] = 오른쪽(상대). 플레이어마다 따로 든다. */
@@ -131,6 +132,10 @@ class VersusPanel extends DesignPanel {
 	private int remain = TIME_LIMIT;
 
 	private final Timer clock = new Timer(1000, e -> tick());
+	/** [버그 22] 내 판을 상대에게 보내는 타이머. 끝나면 멈추려고 저장해 둔다. (네트워크 대전만) */
+	private Timer snapshots;
+	/** [버그 23] AI 대전일 때 오른쪽 판을 두는 AI. 끝나면 멈추려고 저장해 둔다. */
+	private transient AIplayer ai;
 
 	/** 아이템 칸 안내 글자와 반짝일 칸. [0] = 왼쪽, [1] = 오른쪽. 칸이 없으면 -1. */
 	private final String[] notice = new String[2];
@@ -174,9 +179,9 @@ class VersusPanel extends DesignPanel {
 
 		if (connection != null)
 			startNetworkPlay();
-		else if (aiRival)
-			new AIplayer(rivalBoard, frame.aiLevel()).start();
-
+		else if (aiRival){
+			ai = new AIplayer(rivalBoard, frame.aiLevel());   // [버그 23] 멈출 수 있게 저장
+		ai.start();}
 		if (useItems) {
 			bindItemKeys(0);
 			if (local)
@@ -196,7 +201,8 @@ class VersusPanel extends DesignPanel {
 		rivalBoard.setPaused(true);
 
 		connection.setListener(this::onMessage);
-		new Timer(SNAPSHOT_MS, e -> sendSnapshot()).start();
+		snapshots = new Timer(SNAPSHOT_MS, e -> sendSnapshot());   // [버그 22] 멈출 수 있게 저장
+		snapshots.start();
 	}
 
 	private void sendSnapshot() {
@@ -475,10 +481,13 @@ class VersusPanel extends DesignPanel {
 			return;          // 덮개가 떠 있다. (마우스는 덮개를 지나 이 화면까지 온다)
 		pauseBoards();
 		frame.showChoice("게임을 그만두고 나갈까요?", LEAVE, STAY, answer -> {
-			if (LEAVE.equals(answer))
+			if (LEAVE.equals(answer)) {
+				if (ai != null)
+					ai.stop();     // [버그 23] 나가면 AI도 멈춘다
 				frame.showScreen(MainFrame.MULTI);
-			else
+			} else {
 				resume();
+			}
 		});
 	}
 
@@ -545,22 +554,25 @@ class VersusPanel extends DesignPanel {
 		playerBoard.setPaused(true);
 		if (connection == null)
 			rivalBoard.setPaused(true);
-
-		String title = resultTitle();
-		int coins = connection != null ? settle(title) : 0;
+		if (snapshots != null) {
+			sendSnapshot();      // [버그 22] 마지막 판(게임 오버 여부)은 꼭 보내고
+			snapshots.stop();    // 그다음 멈춘다
+		}
+		if (ai != null)
+			ai.stop();                         // [버그 23] AI도 멈춘다
+		MatchResult result = result();   // [버그 18]
+		int coins = connection != null ? settle(result) : 0;
 		String[] names = local ? new String[] { "1P", "2P" }
 				: new String[] { "나", connection != null ? "상대" : "AI" };
-		frame.showVersusResult(names, sideResults(title),
+		frame.showVersusResult(names, sideResults(result),
 				new int[] { playerBoard.score(), rivalScore() },
 				new int[] { playerBoard.getGame().getLinesRemoved(), rivalLines() },
 				itemsUsed.clone(), coins, kind);
 	}
 
 	/** 결과를 보드마다 적는다. 예) 왼쪽이 지면 "LOSE" / "WIN". */
-	private static String[] sideResults(String title) {
-		String left = title.startsWith("YOU ") ? title.substring(4) : title;   // WIN / LOSE / DRAW
-		String right = left.equals("WIN") ? "LOSE" : left.equals("LOSE") ? "WIN" : left;
-		return new String[] { left, right };
+	private static String[] sideResults(MatchResult result) {
+		return new String[] { result.name(), result.opposite().name() };   // 예) "LOSE" / "WIN"
 	}
 
 	private int rivalLines() {
@@ -568,29 +580,29 @@ class VersusPanel extends DesignPanel {
 	}
 
 	/** 참가비를 정산하고 받은 코인을 돌려준다. */
-	private int settle(String title) {
-		if (title.equals("YOU WIN")) {
+	private int settle(MatchResult result) {
+		if (result == MatchResult.WIN) {
 			Wallet.addCoins(fee * 2);
 			return fee * 2;
 		}
-		if (title.equals("DRAW")) {
+		if (result == MatchResult.DRAW) {
 			Wallet.addCoins(fee);
 			return fee;
 		}
 		return 0;   // 졌으면 걸어 둔 참가비를 그대로 잃는다
 	}
 
-	private String resultTitle() {
+	/** [버그 18] 승패를 글자 대신 enum 으로 정한다. */
+	private MatchResult result() {
 		boolean playerOver = playerBoard.getGame().isGameOver();
 		if (playerOver && !rivalLost())
-			return "YOU LOSE";
+			return MatchResult.LOSE;
 		if (rivalLost() && !playerOver)
-			return "YOU WIN";
+			return MatchResult.WIN;
 		int mine = playerBoard.score();
 		int theirs = rivalScore();
-		return mine > theirs ? "YOU WIN" : mine < theirs ? "YOU LOSE" : "DRAW";
+		return mine > theirs ? MatchResult.WIN : mine < theirs ? MatchResult.LOSE : MatchResult.DRAW;
 	}
-
 	// 그리기
 
 	@Override
