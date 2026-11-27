@@ -25,7 +25,7 @@ public abstract class SharedSession {
         void showResult(int winner, int me);
     }
 
-    protected final transient PeerConnection connection;
+    protected final PeerConnection connection;
     protected final int fee;
     protected final View view;
     protected boolean settled = false;

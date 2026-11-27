@@ -7,6 +7,8 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.swing.Timer;
 
@@ -23,6 +25,7 @@ import javax.swing.Timer;
  * 끊긴 것으로 보고 onDisconnected 를 부른다.
  */
 public class PeerConnection {
+	private static final Logger LOG = Logger.getLogger(PeerConnection.class.getName());
 
 	/** [버그 4] 접속을 기다리는 최대 시간. 이보다 오래 걸리면 실패로 본다. */
 	private static final int CONNECT_TIMEOUT_MS = 5000;
@@ -141,7 +144,7 @@ public class PeerConnection {
 			// [버그 3] ObjectOutputStream 은 보낸 객체를 계속 기억해서 메모리가 쌓인다. 보낼 때마다 기억을 지운다.
 			out.reset();
 		} catch (IOException e) {
-			System.out.println("전송 실패: " + e.getMessage());
+			LOG.log(Level.WARNING, "전송 실패: {0}", e.getMessage());
 		}
 	}
 

@@ -30,7 +30,7 @@ class SharedHost extends SharedSession {
     /** [버그 14] 시작 전 카운트다운 초. */
     private static final int COUNTDOWN_SEC = 3;
 
-    private final transient SharedGame game = new SharedGame();
+    private final SharedGame game = new SharedGame();
 
     /**
      * [버그 14] 제한 시간이 끝나는 시각. 카운트다운이 끝나 실제로 시작할 때 정한다.

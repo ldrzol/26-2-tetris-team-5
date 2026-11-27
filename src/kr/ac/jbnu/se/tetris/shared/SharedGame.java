@@ -136,6 +136,7 @@ public class SharedGame implements SharedState {
 
     public void hardDrop(int p) {
         while (moveDown(p)) {
+            // 비워 둔다: moveDown 이 한 칸씩 내리고, 더 못 내려가면 false 라서 멈춘다 (하드드롭)
         }
     }
 

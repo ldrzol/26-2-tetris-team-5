@@ -26,7 +26,10 @@ public class NeuralNetSelfCheck {
         }
         int checked = 0;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-            reader.readLine();   // 첫 줄은 제목
+            String header = reader.readLine();   // 첫 줄은 제목
+            if (header == null) {
+                throw new IOException("model/check.txt 가 비어 있습니다");
+            }
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) {

@@ -582,8 +582,8 @@ class VersusPanel extends DesignPanel implements NetworkMatch.Listener {
 			ai.stop();                         // [버그 23] AI도 멈춘다
 		// [버그 17·22] 마지막 판 보내기, 결과 보내기, 연결 닫기, 정산은 NetworkMatch 가 한다
 		int coins = match != null ? match.finish(result) : 0;
-		String[] names = local ? new String[] { "1P", "2P" }
-				: new String[] { "나", match != null ? "상대" : "AI" };
+		String rival = match != null ? "상대" : "AI";   // 네트워크면 상대, 아니면 AI
+		String[] names = local ? new String[] { "1P", "2P" } : new String[] { "나", rival };
 		frame.showVersusResult(names, sideResults(result),
 				new int[] { playerBoard.score(), rivalScore() },
 				new int[] { playerBoard.getGame().getLinesRemoved(), rivalLines() },
@@ -608,7 +608,11 @@ class VersusPanel extends DesignPanel implements NetworkMatch.Listener {
 			return MatchResult.WIN;
 		int mine = playerBoard.score();
 		int theirs = rivalScore();
-		return mine > theirs ? MatchResult.WIN : mine < theirs ? MatchResult.LOSE : MatchResult.DRAW;
+		if (mine > theirs)
+			return MatchResult.WIN;
+		if (mine < theirs)
+			return MatchResult.LOSE;
+		return MatchResult.DRAW;
 	}
 	// 그리기
 

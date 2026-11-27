@@ -10,7 +10,7 @@ public class HeuristicEvaluator implements Evaluator {
 
     @Override
     public double score(Tetrominoes[] board, int width, int height) {
-        return countClearedLines(board, width, height) * 10
+        return countClearedLines(board, width, height) * 10.0
                 - calculateHeight(board, width, height)
                 - countHoles(board, width, height) * 5
                 - countBumpiness(board, width, height);

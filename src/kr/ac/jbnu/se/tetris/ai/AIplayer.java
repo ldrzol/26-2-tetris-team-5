@@ -33,10 +33,10 @@ public class AIplayer {
         }
     }
 
-    private Board view;
-    private GameBoard game;
+    private final Board view;
+    private final GameBoard game;
     private final TetrisAI ai;
-    private Timer timer;
+    private final Timer timer;
     private Move plan = null;
     private int rotationsLeft = 0;
     private int lastY = -1;

@@ -7,11 +7,17 @@ import kr.ac.jbnu.se.tetris.game.Tetrominoes;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class TetrisAI {
+    private static final Logger LOG = Logger.getLogger(TetrisAI.class.getName());
 
     private final Evaluator evaluator;
+    /** 일부러 실수할 때(엉뚱한 자리) 쓰는 난수. */
+    private final Random random = new Random();
 
     /** 기본: 가장 잘하는 신경망 (model/weights.txt). */
     public TetrisAI() {
@@ -31,7 +37,7 @@ public class TetrisAI {
         try {
             return new NeuralEvaluator(new NeuralNet(weightsPath));
         } catch (IOException | NumberFormatException e) {
-            System.err.println("신경망을 읽지 못해 기존 점수식을 씁니다: " + e.getMessage());
+            LOG.log(Level.WARNING, "신경망을 읽지 못해 기존 점수식을 씁니다: {0}", e.getMessage());
             return new HeuristicEvaluator();
         }
     }
@@ -46,11 +52,9 @@ public class TetrisAI {
         for (int rotation = 0; rotation < 4; rotation++) {
             for (int curX = 0; curX < width; curX++) {
                 int landingY = findLandingY(board, shape, curX);
-                if (landingY == -1) {
+                // 못 놓는 칸(-1)이거나, 다른 회전으로 이미 시험한 것과 똑같은 자리면 건너뛴다
+                if (landingY == -1 || !tried.add(placementKey(shape, curX, landingY))) {
                     continue;
-                }
-                if (!tried.add(placementKey(shape, curX, landingY))) {
-                    continue;   // 다른 회전으로 이미 시험한 것과 똑같은 자리
                 }
                 Tetrominoes[] simulated = simulatePlace(board, shape, curX, landingY);
                 double score = evaluator.score(simulated, width, height);
@@ -77,8 +81,8 @@ public class TetrisAI {
     public Move findRandomMove(GameBoard board, Shape piece) {
         int width = GameBoard.WIDTH;
         for (int attempt = 0; attempt < 50; attempt++) {
-            int rotation = (int) (Math.random() * 4);
-            int curX = (int) (Math.random() * width);
+            int rotation = random.nextInt(4);      // 0~3 회전
+            int curX = random.nextInt(width);      // 0 ~ 가로-1 칸
 
             Shape shape = piece;
             for (int i = 0; i < rotation; i++) {
