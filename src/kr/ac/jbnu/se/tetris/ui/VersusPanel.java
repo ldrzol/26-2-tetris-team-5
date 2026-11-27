@@ -24,6 +24,7 @@ import kr.ac.jbnu.se.tetris.network.BoardStateMessage;
 import kr.ac.jbnu.se.tetris.network.ItemMessage;
 import kr.ac.jbnu.se.tetris.network.PeerConnection;
 import kr.ac.jbnu.se.tetris.network.MatchResult;
+import kr.ac.jbnu.se.tetris.network.NetworkMatch;
 
 /**
  * 대전 화면. Figma "리팩 - 2인 모드(두 화면)".
@@ -36,7 +37,7 @@ import kr.ac.jbnu.se.tetris.network.MatchResult;
  * 아이템은 네트워크 대전과 한 화면 2인 대전에서 쓴다. 손패는 플레이어마다 따로 있고,
  * 상점에서 산 가방(Wallet)에서 올라온다. 자리를 고른 뒤 사용 키를 누르면 가방에서 빠진다.
  */
-class VersusPanel extends DesignPanel {
+class VersusPanel extends DesignPanel implements NetworkMatch.Listener {
 
 	private static final int TIME_LIMIT = 300;   // 5분
 
@@ -45,9 +46,6 @@ class VersusPanel extends DesignPanel {
 
 	/** 이만큼 점수를 올릴 때마다 아이템을 하나 받는다. */
 	private static final int ITEM_SCORE = 500;
-
-	/** 상대에게 내 화면을 보내는 간격(ms). */
-	private static final int SNAPSHOT_MS = 100;
 
 	// Figma "리팩 - 2인 모드(두 화면)" 수치 (디자인 기준 픽셀)
 	private static final Rectangle BOARD_1 = new Rectangle(327, 233, 550, 1100);
@@ -94,11 +92,8 @@ class VersusPanel extends DesignPanel {
 	private final Board playerBoard = newBoard();
 	private final Board rivalBoard = newBoard();
 
-	/** 네트워크 대전일 때만 연결이 있다. AI·로컬 대전은 null. */
-	private final transient PeerConnection connection;
-	private final int fee;
-	/** [버그 17] 네트워크 대전에서 내가 방장인지. 승패는 방장만 정한다. */
-	private final boolean host;
+	/** 네트워크 대전일 때만 있다. 통신·결과·정산은 NetworkMatch 가 맡는다. AI·로컬 대전은 null. */
+	private final transient NetworkMatch match;
 
 	/** 손패. [0] = 왼쪽(나), [1] = 오른쪽(상대). 플레이어마다 따로 든다. */
 	private final Attack[][] hands = new Attack[2][HAND_SIZE];
@@ -132,12 +127,9 @@ class VersusPanel extends DesignPanel {
 
 	private String timeText = "05:00";
 	private int remain = TIME_LIMIT;
-	/** [버그 20] 네트워크 대전이 끝나는 시각(ms). */
-	private long endTime;
 
 	private final Timer clock = new Timer(1000, e -> tick());
-	/** [버그 22] 내 판을 상대에게 보내는 타이머. 끝나면 멈추려고 저장해 둔다. (네트워크 대전만) */
-	private Timer snapshots;
+
 	/** [버그 23] AI 대전일 때 오른쪽 판을 두는 AI. 끝나면 멈추려고 저장해 둔다. */
 	private transient AIplayer ai;
 
@@ -160,11 +152,9 @@ class VersusPanel extends DesignPanel {
 						PeerConnection connection, boolean host, int fee) {
 		this.frame = frame;
 		this.kind = kind;
-		this.connection = connection;
-		this.fee = fee;
-		this.host = host;
-		this.local = connection == null && !aiRival;
-		this.useItems = connection != null || local;
+		this.match = connection == null ? null : new NetworkMatch(connection, host, fee, this::snapshot);
+		this.local = match == null && !aiRival;
+		this.useItems = match != null || local;
 
 		add(playerBoard);
 		add(rivalBoard);
@@ -182,7 +172,7 @@ class VersusPanel extends DesignPanel {
 		playerBoard.start();
 		rivalBoard.start();
 
-		if (connection != null)
+		if (match != null)
 			startNetworkPlay();
 		else if (aiRival){
 			ai = new AIplayer(rivalBoard, frame.aiLevel());   // [버그 23] 멈출 수 있게 저장
@@ -205,48 +195,44 @@ class VersusPanel extends DesignPanel {
 	private void startNetworkPlay() {
 		rivalBoard.setPaused(true);
 
-		connection.setListener(this::onMessage);
-		connection.setOnDisconnected(() -> SwingUtilities.invokeLater(this::onRivalLeft));   // [버그 21]
-		snapshots = new Timer(SNAPSHOT_MS, e -> sendSnapshot());   // [버그 22] 멈출 수 있게 저장
-		snapshots.start();
-		endTime = System.currentTimeMillis() + TIME_LIMIT * 1000L;   // [버그 20] 5분 뒤에 끝난다
+		match.start(TIME_LIMIT, this);   // 받기·끊김 알림·판 보내기·시계는 NetworkMatch 가 (버그 20·21·22)
 	}
 
 	/**
 	 * [버그 21] 상대가 나갔거나 연결이 끊겼을 때. 판을 멈추고 안내한다.
 	 * 정산은 하지 않는다. (끊겼을 때 참가비 규칙은 팀과 정하기 - 땅따먹기와 같게 둠)
 	 */
-	private void onRivalLeft() {
+	@Override
+	public void onRivalLeft() {
 		if (finished)
 			return;          // 이미 결과가 나왔으면 할 것이 없다
 		finished = true;
 		clock.stop();
-		snapshots.stop();    // 상대가 없으니 더 보내지 않는다
+		match.rivalLeft();   // 상대가 없으니 더 보내지 않는다
 		playerBoard.setPaused(true);
 		frame.showChoice("상대와 연결이 끊어졌습니다", "2인 모드로", "메인으로",
 				answer -> frame.showScreen("메인으로".equals(answer) ? MainFrame.MENU : MainFrame.MULTI));
 	}
 
-	private void sendSnapshot() {
+	/** 지금 내 판을 메시지로 만든다. 보내는 일은 NetworkMatch 가 0.1초마다 한다. */
+	private BoardStateMessage snapshot() {
 		Tetrominoes[] cells = new Tetrominoes[GameBoard.WIDTH * GameBoard.HEIGHT];
 		int[] colors = new int[cells.length];
 		GameBoard game = playerBoard.getGame();
 		game.writeVisible(cells, colors);
-		connection.send(new BoardStateMessage(cells, colors,
+		return new BoardStateMessage(cells, colors,
 				game.getLinesRemoved(), game.getScore(), game.isGameOver(), hands[0].clone(),
-				game.getCombo()));
+				game.getCombo());
 	}
 
-	private void onMessage(Object message) {
-		if (message instanceof BoardStateMessage)
-			SwingUtilities.invokeLater(() -> receiveState((BoardStateMessage) message));
-		else if (message instanceof ItemMessage)
-			SwingUtilities.invokeLater(() -> receiveItem((ItemMessage) message));
-		else if (message instanceof MatchResult)   // [버그 17] 방장이 정한 결과. 방장 쪽에서 본 것이라 뒤집는다
-			SwingUtilities.invokeLater(() -> finish(((MatchResult) message).opposite()));
+	/** [버그 17] 방장이 정한 결과가 왔다. NetworkMatch 가 내 쪽에서 본 결과로 뒤집어서 준다. */
+	@Override
+	public void onResult(MatchResult result) {
+		finish(result);
 	}
 
-	private void receiveState(BoardStateMessage state) {
+	@Override
+	public void onRivalState(BoardStateMessage state) {   // 상대 판이 왔다 (NetworkMatch 가 알려 줌)
 		rivalBoard.getGame().applyRemoteState(state.cells, state.colors);
 		if (state.hand != null)
 			hands[1] = state.hand;          // 상대 가방을 오른쪽에 그대로 보여 준다
@@ -258,7 +244,8 @@ class VersusPanel extends DesignPanel {
 		repaint();
 	}
 
-	private void receiveItem(ItemMessage item) {
+	@Override
+	public void onRivalItem(ItemMessage item) {   // 상대가 아이템을 썼다 (NetworkMatch 가 알려 줌)
 		if (!item.reply)
 			itemsUsed[1]++;
 		notice(0, "상대 " + item.attack.label + "!", -1);
@@ -283,7 +270,7 @@ class VersusPanel extends DesignPanel {
 		}
 		Tetrominoes mine = playerBoard.getGame().currentType();
 		boolean took = playerBoard.getGame().replaceCurrentPiece(item.piece);
-		connection.send(new ItemMessage(Attack.SWAP, took ? mine : Tetrominoes.NoShape, true));
+		match.replySwap(took ? mine : Tetrominoes.NoShape);
 	}
 
 	// 아이템
@@ -423,21 +410,11 @@ class VersusPanel extends DesignPanel {
 
 		if (attack.self)
 			board(player).getGame().getGimmick().apply(attack);
-		else if (connection != null)
-			sendItem(attack);
+		else if (match != null)
+			match.sendItem(attack, playerBoard.getGame().currentType());   // 보내기는 NetworkMatch 가
 		else
 			hitRival(player, attack);
 		repaint();
-	}
-
-	private void sendItem(Attack attack) {
-		if (attack == Attack.SWAP) {
-			// 내 블록을 보내기만 하고, 상대가 쥔 것은 답장으로 받는다. 받아 둔 화면에서
-			// 꺼내 쓰면 최대 SNAPSHOT_MS 만큼 옛날 것이라 교환이 어긋난다.
-			connection.send(new ItemMessage(Attack.SWAP, playerBoard.getGame().currentType(), false));
-		} else {
-			connection.send(new ItemMessage(attack));
-		}
 	}
 
 	/** 한 화면 2인: 상대 보드에 바로 건다. 주고받을 것이 없으므로 교환도 그 자리에서 한다. */
@@ -493,10 +470,10 @@ class VersusPanel extends DesignPanel {
 
 	/** 두 판과 시계를 멈춘다. 덮개를 띄우기 전에 부른다. */
 	private void pauseBoards() {
-		if (connection == null)
+		if (match == null)
 			clock.stop();        // [버그 19] 네트워크 대전은 상대가 계속하므로 시간은 멈추지 않는다
 		playerBoard.setPaused(true);
-		if (connection == null)
+		if (match == null)
 			rivalBoard.setPaused(true);
 	}
 
@@ -509,10 +486,9 @@ class VersusPanel extends DesignPanel {
 			if (LEAVE.equals(answer)) {
 				if (ai != null)
 					ai.stop();     // [버그 23] 나가면 AI도 멈춘다
-				if (connection != null) {
+				if (match != null) {
 					finished = true;
-					snapshots.stop();
-					connection.close();   // [버그 21] 연결을 닫으면 상대 쪽에서 "끊겼다"를 알게 된다
+					match.leave();   // [버그 21] 연결을 닫으면 상대 쪽에서 "끊겼다"를 알게 된다
 				}
 				frame.showScreen(MainFrame.MULTI);
 			} else {
@@ -532,7 +508,7 @@ class VersusPanel extends DesignPanel {
 	private void resume() {
 		bindGameKeys();     // 일시정지 중에 설정을 바꿨을 수 있다
 		playerBoard.setPaused(false);
-		if (connection == null)
+		if (match == null)
 			rivalBoard.setPaused(false);
 		clock.start();
 	}
@@ -544,14 +520,10 @@ class VersusPanel extends DesignPanel {
 		b.onRepaint(this::repaint);          // Hold/Next 는 패널이 그리므로 같이 갱신해야 한다
 		return b;
 	}
-	/** [버그 20] 네트워크 대전의 남은 초. 끝나는 시각에서 지금 시각을 뺀다. */
-	private int secondsLeft() {
-		return (int) Math.max(0, (endTime - System.currentTimeMillis() + 999) / 1000);
-	}
 
 	/** [버그 17] 판이 끝났을 때. 네트워크 대전은 방장만 승패를 정하고, 참가자는 방장 결과를 기다린다. */
 	private void end() {
-		if (connection != null && !host)
+		if (match != null && !match.isHost())
 			waitForHost();
 		else
 			finish(result());
@@ -561,14 +533,11 @@ class VersusPanel extends DesignPanel {
 	private void waitForHost() {
 		clock.stop();
 		playerBoard.setPaused(true);
-		if (snapshots.isRunning()) {
-			sendSnapshot();      // 내 마지막 점수·게임 오버를 방장에게 알린다
-			snapshots.stop();
-		}
+		match.stopSending();   // 내 마지막 점수·게임 오버를 방장에게 알리고 보내기를 멈춘다
 	}
 	private void tick() {
-		if (connection != null)
-			remain = secondsLeft();   // [버그 20] 네트워크는 실제 시계로 센다 (타이머가 밀려도 안 틀어짐)
+		if (match != null)
+			remain = match.secondsLeft();   // [버그 20] 네트워크는 실제 시계로 센다 (NetworkMatch)
 		else
 			remain--;
 		timeText = mmss(remain);
@@ -593,11 +562,11 @@ class VersusPanel extends DesignPanel {
 	}
 
 	private boolean rivalLost() {
-		return connection != null ? rivalOver : rivalBoard.getGame().isGameOver();
+		return match != null ? rivalOver : rivalBoard.getGame().isGameOver();
 	}
 
 	private int rivalScore() {
-		return connection != null ? rivalScore : rivalBoard.score();
+		return match != null ? rivalScore : rivalBoard.score();
 	}
 
 	private void finish(MatchResult result) {   // [버그 17] 결과는 밖에서 정해서 넘긴다
@@ -606,22 +575,15 @@ class VersusPanel extends DesignPanel {
 		finished = true;
 		clock.stop();
 		playerBoard.setPaused(true);
-		if (connection == null)
+		if (match == null)
 			rivalBoard.setPaused(true);
-		if (snapshots != null) {
-			sendSnapshot();      // [버그 22] 마지막 판(게임 오버 여부)은 꼭 보내고
-			snapshots.stop();    // 그다음 멈춘다
-		}
+
 		if (ai != null)
 			ai.stop();                         // [버그 23] AI도 멈춘다
-		if (connection != null) {
-			if (host)
-				connection.send(result);   // [버그 17] 방장이 정한 결과를 참가자에게 보낸다
-			connection.close();            // 끝났으니 연결을 닫는다
-		}
-		int coins = connection != null ? settle(result) : 0;
+		// [버그 17·22] 마지막 판 보내기, 결과 보내기, 연결 닫기, 정산은 NetworkMatch 가 한다
+		int coins = match != null ? match.finish(result) : 0;
 		String[] names = local ? new String[] { "1P", "2P" }
-				: new String[] { "나", connection != null ? "상대" : "AI" };
+				: new String[] { "나", match != null ? "상대" : "AI" };
 		frame.showVersusResult(names, sideResults(result),
 				new int[] { playerBoard.score(), rivalScore() },
 				new int[] { playerBoard.getGame().getLinesRemoved(), rivalLines() },
@@ -634,20 +596,7 @@ class VersusPanel extends DesignPanel {
 	}
 
 	private int rivalLines() {
-		return connection != null ? rivalLines : rivalBoard.getGame().getLinesRemoved();
-	}
-
-	/** 참가비를 정산하고 받은 코인을 돌려준다. */
-	private int settle(MatchResult result) {
-		if (result == MatchResult.WIN) {
-			Wallet.addCoins(fee * 2);
-			return fee * 2;
-		}
-		if (result == MatchResult.DRAW) {
-			Wallet.addCoins(fee);
-			return fee;
-		}
-		return 0;   // 졌으면 걸어 둔 참가비를 그대로 잃는다
+		return match != null ? rivalLines : rivalBoard.getGame().getLinesRemoved();
 	}
 
 	/** [버그 18] 승패를 글자 대신 enum 으로 정한다. */
@@ -691,7 +640,7 @@ class VersusPanel extends DesignPanel {
 		}
 
 		previews(g, playerBoard, 0);
-		if (connection == null)
+		if (match == null)
 			previews(g, rivalBoard, 1);   // 비추기만 할 때는 알 수 없다
 
 		panel(g, TIME_BOX);
@@ -801,7 +750,7 @@ class VersusPanel extends DesignPanel {
 
 	/** 상대 보드는 비추기만 하므로 콤보도 받아 온 값을 쓴다. */
 	private int combo(Board board) {
-		if (board == rivalBoard && connection != null)
+		if (board == rivalBoard && match != null)
 			return rivalCombo;
 		return board.getGame().getCombo();
 	}
