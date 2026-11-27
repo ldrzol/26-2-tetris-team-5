@@ -130,6 +130,8 @@ class VersusPanel extends DesignPanel {
 
 	private String timeText = "05:00";
 	private int remain = TIME_LIMIT;
+	/** [버그 20] 네트워크 대전이 끝나는 시각(ms). */
+	private long endTime;
 
 	private final Timer clock = new Timer(1000, e -> tick());
 	/** [버그 22] 내 판을 상대에게 보내는 타이머. 끝나면 멈추려고 저장해 둔다. (네트워크 대전만) */
@@ -201,8 +203,25 @@ class VersusPanel extends DesignPanel {
 		rivalBoard.setPaused(true);
 
 		connection.setListener(this::onMessage);
+		connection.setOnDisconnected(() -> SwingUtilities.invokeLater(this::onRivalLeft));   // [버그 21]
 		snapshots = new Timer(SNAPSHOT_MS, e -> sendSnapshot());   // [버그 22] 멈출 수 있게 저장
 		snapshots.start();
+		endTime = System.currentTimeMillis() + TIME_LIMIT * 1000L;   // [버그 20] 5분 뒤에 끝난다
+	}
+
+	/**
+	 * [버그 21] 상대가 나갔거나 연결이 끊겼을 때. 판을 멈추고 안내한다.
+	 * 정산은 하지 않는다. (끊겼을 때 참가비 규칙은 팀과 정하기 - 땅따먹기와 같게 둠)
+	 */
+	private void onRivalLeft() {
+		if (finished)
+			return;          // 이미 결과가 나왔으면 할 것이 없다
+		finished = true;
+		clock.stop();
+		snapshots.stop();    // 상대가 없으니 더 보내지 않는다
+		playerBoard.setPaused(true);
+		frame.showChoice("상대와 연결이 끊어졌습니다", "2인 모드로", "메인으로",
+				answer -> frame.showScreen("메인으로".equals(answer) ? MainFrame.MENU : MainFrame.MULTI));
 	}
 
 	private void sendSnapshot() {
@@ -469,7 +488,8 @@ class VersusPanel extends DesignPanel {
 
 	/** 두 판과 시계를 멈춘다. 덮개를 띄우기 전에 부른다. */
 	private void pauseBoards() {
-		clock.stop();
+		if (connection == null)
+			clock.stop();        // [버그 19] 네트워크 대전은 상대가 계속하므로 시간은 멈추지 않는다
 		playerBoard.setPaused(true);
 		if (connection == null)
 			rivalBoard.setPaused(true);
@@ -484,6 +504,11 @@ class VersusPanel extends DesignPanel {
 			if (LEAVE.equals(answer)) {
 				if (ai != null)
 					ai.stop();     // [버그 23] 나가면 AI도 멈춘다
+				if (connection != null) {
+					finished = true;
+					snapshots.stop();
+					connection.close();   // [버그 21] 연결을 닫으면 상대 쪽에서 "끊겼다"를 알게 된다
+				}
 				frame.showScreen(MainFrame.MULTI);
 			} else {
 				resume();
@@ -514,9 +539,15 @@ class VersusPanel extends DesignPanel {
 		b.onRepaint(this::repaint);          // Hold/Next 는 패널이 그리므로 같이 갱신해야 한다
 		return b;
 	}
-
+	/** [버그 20] 네트워크 대전의 남은 초. 끝나는 시각에서 지금 시각을 뺀다. */
+	private int secondsLeft() {
+		return (int) Math.max(0, (endTime - System.currentTimeMillis() + 999) / 1000);
+	}
 	private void tick() {
-		remain--;
+		if (connection != null)
+			remain = secondsLeft();   // [버그 20] 네트워크는 실제 시계로 센다 (타이머가 밀려도 안 틀어짐)
+		else
+			remain--;
 		timeText = mmss(remain);
 
 		if (useItems) {
