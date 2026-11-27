@@ -2,13 +2,8 @@ package kr.ac.jbnu.se.tetris.shared;
 
 import kr.ac.jbnu.se.tetris.game.Shape;
 import kr.ac.jbnu.se.tetris.game.Tetrominoes;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.List;
-import java.util.Random;
+import kr.ac.jbnu.se.tetris.game.PieceQueue;
+import kr.ac.jbnu.se.tetris.game.Playfield;
 
 public class SharedGame implements SharedState {
     public static final int WIDTH = 14;
@@ -21,11 +16,6 @@ public class SharedGame implements SharedState {
     /** getWinner()가 무승부일 때 돌려주는 값. */
     public static final int DRAW = -1;
 
-    /** 7-bag 에 들어가는 블록 7종류. */
-    private static final Tetrominoes[] PIECES = {
-            Tetrominoes.ZShape, Tetrominoes.SShape, Tetrominoes.LineShape, Tetrominoes.TShape,
-            Tetrominoes.SquareShape, Tetrominoes.LShape, Tetrominoes.MirroredLShape };
-
     /** 벽 킥 때 밀어 보는 칸 수 (제자리 -> 왼쪽 1 -> 오른쪽 1 -> 왼쪽 2 -> 오른쪽 2). */
     private static final int[] KICKS = {0, -1, 1, -2, 2};
 
@@ -37,10 +27,8 @@ public class SharedGame implements SharedState {
         int x;
         int y;
         int score;
-        /** 7-bag 주머니. 7종류를 섞어 넣고 하나씩 꺼낸다. 비면 다시 채운다. */
-        final Deque<Tetrominoes> bag = new ArrayDeque<>();
-        /** 다음에 나올 블록. */
-        Tetrominoes next;
+        /** 7-bag 주머니와 다음 블록. 1인 모드와 같은 PieceQueue 를 쓴다. (색은 안 써서 1가지) */
+        final PieceQueue queue = new PieceQueue(1);
         /** [고정 지연] 바닥에 닿은 채로 지나간 칸 수. */
         int groundTicks;
         /** [홀드] 저장해 둔 블록. 없으면 NoShape. */
@@ -49,9 +37,9 @@ public class SharedGame implements SharedState {
         boolean canHold = true;
     }
 
-    private final Tetrominoes[] cells = new Tetrominoes[WIDTH * HEIGHT];
+    /** 쌓인 칸. 1인 모드와 같은 Playfield 를 쓴다 (가로만 14칸). */
+    private final Playfield field = new Playfield(WIDTH, HEIGHT);
     private final Player[] players = {new Player(), new Player()};
-    private final Random random = new Random();
     private boolean gameOver = false;
 
     public SharedGame() {
@@ -59,13 +47,10 @@ public class SharedGame implements SharedState {
     }
 
     public void reset() {
-        for (int i = 0; i < cells.length; i++) {
-            cells[i] = Tetrominoes.NoShape;
-        }
+        field.clear();
         for (Player player : players) {
             player.score = 0;
-            player.bag.clear();
-            player.next = null;
+            player.queue.clear();
             player.held = Tetrominoes.NoShape;
         }
         gameOver = false;
@@ -141,7 +126,7 @@ public class SharedGame implements SharedState {
     }
 
     public Tetrominoes shapeAt(int x, int y) {
-        return cells[y * WIDTH + x];
+        return field.shapeAt(x, y);
     }
 
     public Tetrominoes pieceType(int p) {
@@ -190,26 +175,16 @@ public class SharedGame implements SharedState {
     }
 
     private boolean canPlace(Shape shape, int px, int py) {
-        for (int i = 0; i < PIECE_CELLS; i++) {
-            int x = px + shape.x(i);
-            int y = py - shape.y(i);
-            if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
-                return false;
-            }
-            if (cells[y * WIDTH + x] != Tetrominoes.NoShape) {
-                return false;
-            }
-        }
-        return true;
+        return field.canPlace(shape, px, py);   // 판 안·빈 칸 검사는 Playfield 를 그대로 쓴다
     }
     /** 다음 블록을 꺼내 나올 자리에 둔다. 막혔으면 게임 끝. */
     private void spawn(int p) {
         Player player = players[p];
-        if (player.next == null) {
-            player.next = draw(player);
+        if (player.queue.nextShape() == Tetrominoes.NoShape) {
+            player.queue.advance();   // 맨 처음에는 다음 블록이 없으니 먼저 하나 뽑는다
         }
-        Tetrominoes type = player.next;
-        player.next = draw(player);
+        Tetrominoes type = player.queue.nextShape();
+        player.queue.advance();       // 7-bag 은 PieceQueue 를 그대로 쓴다
         player.canHold = true;   // [홀드] 새 블록이 나오면 다시 홀드할 수 있다
         enter(p, type);
     }
@@ -228,19 +203,10 @@ public class SharedGame implements SharedState {
         }
     }
 
-    /** 7-bag 주머니에서 하나 꺼낸다. 비었으면 7종류를 섞어서 다시 채운다. */
-    private Tetrominoes draw(Player player) {
-        if (player.bag.isEmpty()) {
-            List<Tetrominoes> all = new ArrayList<>(Arrays.asList(PIECES));
-            Collections.shuffle(all, random);
-            player.bag.addAll(all);
-        }
-        return player.bag.poll();
-    }
 
     /** p번 사람의 다음 블록 (화면에 미리 보여 주기용). */
     public Tetrominoes nextType(int p) {
-        return players[p].next;
+        return players[p].queue.nextShape();
     }
 
     /** [홀드] 지금 블록을 저장해 두고, 저장해 둔 블록(없으면 다음 블록)을 꺼낸다. 블록 하나에 한 번만 된다. */
@@ -282,7 +248,7 @@ public class SharedGame implements SharedState {
         for (int i = 0; i < PIECE_CELLS; i++) {
             int x = player.x + player.shape.x(i);
             int y = player.y - player.shape.y(i);
-            cells[y * WIDTH + x] = player.shape.getShape();
+            field.set(x, y, player.shape.getShape(), 0);   // 색 번호는 땅따먹기에서 안 써서 0
         }
         player.score += clearLines();
 
@@ -309,33 +275,13 @@ public class SharedGame implements SharedState {
         int cleared = 0;
         int y = 0;
         while (y < HEIGHT) {
-            if (isRowFull(y)) {
-                removeRow(y);
+            if (field.isRowFull(y)) {
+                field.removeRow(y);      // 줄 검사·지우기는 Playfield 를 그대로 쓴다
                 cleared++;
             } else {
                 y++;
             }
         }
         return cleared;
-    }
-
-    private boolean isRowFull(int y) {
-        for (int x = 0; x < WIDTH; x++) {
-            if (cells[y * WIDTH + x] == Tetrominoes.NoShape) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void removeRow(int y) {
-        for (int row = y; row < HEIGHT - 1; row++) {
-            for (int x = 0; x < WIDTH; x++) {
-                cells[row * WIDTH + x] = cells[(row + 1) * WIDTH + x];
-            }
-        }
-        for (int x = 0; x < WIDTH; x++) {
-            cells[(HEIGHT - 1) * WIDTH + x] = Tetrominoes.NoShape;
-        }
     }
 }
