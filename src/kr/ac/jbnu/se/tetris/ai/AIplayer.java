@@ -10,8 +10,8 @@ import javax.swing.Timer;
 public class AIplayer {
     public enum Level {
         EASY("쉬움", 0.05, 400, 0.2, "model/weights_easy.txt"),
-        NORMAL("보통", 0.0, 300, 0.25, "model/weights_normal.txt"),
-        HARD("어려움", 0.0, 80, 1.0, NeuralNet.WEIGHTS);
+        NORMAL("보통", 0.03, 280, 0.6, NeuralNet.WEIGHTS),   // 어려움 모델 + 5% 실수 + 느리게
+        HARD("어려움", 0.0, 250, 0.8, NeuralNet.WEIGHTS);
 
         private final String label;
         private final double mistakeRate;
