@@ -200,8 +200,8 @@ public class MainFrame extends JFrame {
 	}
 
 	/** 네트워크 2인 대전을 띄운다. 끝나면 참가비를 정산한다. */
-	void showVersus(PeerConnection connection, int fee) {
-		show(new VersusPanel(this, connection, fee), VERSUS);
+	void showVersus(PeerConnection connection, boolean host, int fee) {
+		show(new VersusPanel(this, connection, host, fee), VERSUS);
 	}
 
 	/** 땅따먹기(넓은 판 하나를 둘이 같이 쓰는 모드)를 띄운다. */

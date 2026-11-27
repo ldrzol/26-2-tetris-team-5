@@ -132,6 +132,6 @@ class LobbyFrame extends MenuScreen implements LobbyService.Listener {
 		if (gameMode == GameMode.SHARED)
 			frame.showShared(connection, host, fee);
 		else
-			frame.showVersus(connection, fee);
+			frame.showVersus(connection, host, fee);
 	}
 }

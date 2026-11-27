@@ -97,6 +97,8 @@ class VersusPanel extends DesignPanel {
 	/** 네트워크 대전일 때만 연결이 있다. AI·로컬 대전은 null. */
 	private final transient PeerConnection connection;
 	private final int fee;
+	/** [버그 17] 네트워크 대전에서 내가 방장인지. 승패는 방장만 정한다. */
+	private final boolean host;
 
 	/** 손패. [0] = 왼쪽(나), [1] = 오른쪽(상대). 플레이어마다 따로 든다. */
 	private final Attack[][] hands = new Attack[2][HAND_SIZE];
@@ -146,20 +148,21 @@ class VersusPanel extends DesignPanel {
 
 	/** AI 대전 또는 같은 PC 대전. */
 	VersusPanel(MainFrame frame, String kind, boolean aiRival) {
-		this(frame, kind, aiRival, null, 0);
+		this(frame, kind, aiRival, null, false, 0);
 	}
 
-	/** 네트워크 2인 대전. 끝나면 참가비를 정산한다. */
-	VersusPanel(MainFrame frame, PeerConnection connection, int fee) {
-		this(frame, MainFrame.LOBBY, false, connection, fee);
+	/** 네트워크 2인 대전. 끝나면 참가비를 정산한다. [버그 17] host = 내가 방장인지 (승패는 방장이 정한다) */
+	VersusPanel(MainFrame frame, PeerConnection connection, boolean host, int fee) {
+		this(frame, MainFrame.LOBBY, false, connection, host, fee);
 	}
 
 	private VersusPanel(MainFrame frame, String kind, boolean aiRival,
-			PeerConnection connection, int fee) {
+						PeerConnection connection, boolean host, int fee) {
 		this.frame = frame;
 		this.kind = kind;
 		this.connection = connection;
 		this.fee = fee;
+		this.host = host;
 		this.local = connection == null && !aiRival;
 		this.useItems = connection != null || local;
 
@@ -239,6 +242,8 @@ class VersusPanel extends DesignPanel {
 			SwingUtilities.invokeLater(() -> receiveState((BoardStateMessage) message));
 		else if (message instanceof ItemMessage)
 			SwingUtilities.invokeLater(() -> receiveItem((ItemMessage) message));
+		else if (message instanceof MatchResult)   // [버그 17] 방장이 정한 결과. 방장 쪽에서 본 것이라 뒤집는다
+			SwingUtilities.invokeLater(() -> finish(((MatchResult) message).opposite()));
 	}
 
 	private void receiveState(BoardStateMessage state) {
@@ -543,6 +548,24 @@ class VersusPanel extends DesignPanel {
 	private int secondsLeft() {
 		return (int) Math.max(0, (endTime - System.currentTimeMillis() + 999) / 1000);
 	}
+
+	/** [버그 17] 판이 끝났을 때. 네트워크 대전은 방장만 승패를 정하고, 참가자는 방장 결과를 기다린다. */
+	private void end() {
+		if (connection != null && !host)
+			waitForHost();
+		else
+			finish(result());
+	}
+
+	/** [버그 17] 참가자: 내 판이 끝나도 승패는 방장이 정한다. 판을 멈추고 마지막 판을 보낸 뒤 기다린다. */
+	private void waitForHost() {
+		clock.stop();
+		playerBoard.setPaused(true);
+		if (snapshots.isRunning()) {
+			sendSnapshot();      // 내 마지막 점수·게임 오버를 방장에게 알린다
+			snapshots.stop();
+		}
+	}
 	private void tick() {
 		if (connection != null)
 			remain = secondsLeft();   // [버그 20] 네트워크는 실제 시계로 센다 (타이머가 밀려도 안 틀어짐)
@@ -558,7 +581,7 @@ class VersusPanel extends DesignPanel {
 		repaint();
 
 		if (remain <= 0 || playerBoard.getGame().isGameOver() || rivalLost())
-			finish();
+			end();   // [버그 17]
 	}
 
 	/** 점수가 ITEM_SCORE 만큼 오를 때마다 아이템을 하나 준다. */
@@ -577,7 +600,7 @@ class VersusPanel extends DesignPanel {
 		return connection != null ? rivalScore : rivalBoard.score();
 	}
 
-	private void finish() {
+	private void finish(MatchResult result) {   // [버그 17] 결과는 밖에서 정해서 넘긴다
 		if (finished)
 			return;
 		finished = true;
@@ -591,7 +614,11 @@ class VersusPanel extends DesignPanel {
 		}
 		if (ai != null)
 			ai.stop();                         // [버그 23] AI도 멈춘다
-		MatchResult result = result();   // [버그 18]
+		if (connection != null) {
+			if (host)
+				connection.send(result);   // [버그 17] 방장이 정한 결과를 참가자에게 보낸다
+			connection.close();            // 끝났으니 연결을 닫는다
+		}
 		int coins = connection != null ? settle(result) : 0;
 		String[] names = local ? new String[] { "1P", "2P" }
 				: new String[] { "나", connection != null ? "상대" : "AI" };
